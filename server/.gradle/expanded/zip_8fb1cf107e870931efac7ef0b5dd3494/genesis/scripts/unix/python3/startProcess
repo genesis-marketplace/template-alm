@@ -1,0 +1,319 @@
+#!/usr/bin/env python3
+
+import argparse
+import daemonCommon
+import datetime
+import glob
+import gzip
+import jvm
+import os
+import resourceValidator
+import sys
+import time
+
+import genesis
+
+parser = argparse.ArgumentParser(description='Starts a Genesis process.', usage='startProcess processName [--hostname <[hosts names]>]')
+parser.add_argument('processName', help='processName')
+parser.add_argument('--hostname', '-s', dest='hostname', help='Hosts Name or "cluster" for all hosts', nargs='+')
+parser.add_argument('--cluster', '-c', dest='cluster', help='Sends the command across the cluster nodes', action="store_true")
+parser.add_argument('--verbose', '-v', help='Starts in verbose mode, logs to console', action="store_true")
+args, unknown = parser.parse_known_args()
+
+
+def printUsage():
+    print('Process name is a mandatory argument!.\nUsage: startProcess processName [--dump] [[optarg1] [optarg2] [opt3] [etc]...]')
+
+
+def getCurrentTime(format):
+    ts = time.time()
+    return datetime.datetime.fromtimestamp(ts).strftime(format)
+
+
+def moveLogs(processName):
+    src = os.environ["GENESIS_HOME"] + '/runtime/logs/'
+    dest = os.environ["GENESIS_HOME"] + '/runtime/logs/currentRun/'
+
+    if not os.path.exists(dest):
+        os.makedirs(dest)
+
+    srcFilePath = src + processName + '.log'
+    srcErrPath = src + processName + '.log.err'
+
+    st = getCurrentTime('%Y-%m-%d_%H:%M:%S')
+
+    destGzip = dest + processName + '_' + st + '.log'
+    destErrGzip = dest + processName + '_' + st + '.log.err'
+
+    if (os.path.isdir(src)):
+        writeLogs(srcFilePath, destGzip)
+        writeLogs(srcErrPath, destErrGzip)
+
+
+def writeLogs(sourceFile, destFile):
+    files = glob.glob(sourceFile)
+    if len(files) == 0:
+        return
+    elif len(files) == 1:
+        f_in = open(sourceFile, 'rb')
+        f_out = gzip.open(destFile + '.gz', 'wb')
+        f_out.writelines(f_in)
+        f_out.close()
+        f_in.close()
+        os.remove(sourceFile)
+
+
+def mergeScanPackage(oldPackage, appendedPackage):
+    if oldPackage is None or oldPackage == appendedPackage:
+        return appendedPackage
+    else:
+        newPackage = oldPackage + "#" + appendedPackage
+        print("Scanning for package " + newPackage)
+        return newPackage
+
+
+def getHeapDumpPath(processName):
+    sysdef = genesis.read_system_definition()
+    format = '%Y-%m-%d_%H%M%S'
+    if 'HeapDumpPath' in sysdef:
+        return str(sysdef['HeapDumpPath']) + '/' + processName + '_' + getCurrentTime(format) + '.hprof'
+    else:
+        return os.environ["GENESIS_HOME"] + '/runtime/heapdump/' + processName + '_' + getCurrentTime(format) + '.hprof'
+
+
+def startProcess(processName, argv, verbose=False):
+    processDef = genesis.getProcessDefinition(processName)
+
+    if processDef is None:
+        print('Failed to find process ' + processName)
+        return
+
+    print('Starting process ' + processName)
+
+    scanPackage = None
+    options = ''
+    configFile = ''
+    loggingLevel = None
+    configOverridesFile = None
+    scriptFile = None
+    language = None
+    module = None
+    startCmd = None
+    joinPub = None
+    classpath = ""
+    extra_jar_class_path = None
+    arguments = None
+
+    if len(processDef.getElementsByTagName('package')) == 1:
+        if processDef.getElementsByTagName('package')[0].firstChild is not None:
+            scanPackage = processDef.getElementsByTagName('package')[0].firstChild.nodeValue
+
+    if len(processDef.getElementsByTagName('options')) == 1:
+        if processDef.getElementsByTagName('options')[0].firstChild is not None:
+            options = processDef.getElementsByTagName('options')[0].firstChild.nodeValue
+
+    if len(processDef.getElementsByTagName('config')) == 1:
+        if processDef.getElementsByTagName('config')[0].firstChild is not None:
+            configFile = processDef.getElementsByTagName('config')[0].firstChild.nodeValue
+
+    if len(processDef.getElementsByTagName('script')) == 1:
+        if processDef.getElementsByTagName('script')[0].firstChild is not None:
+            scriptFile = processDef.getElementsByTagName('script')[0].firstChild.nodeValue
+
+    if len(processDef.getElementsByTagName('language')) == 1:
+        if processDef.getElementsByTagName('language')[0].firstChild is not None:
+            language = processDef.getElementsByTagName('language')[0].firstChild.nodeValue
+
+    if len(processDef.getElementsByTagName('module')) == 1:
+        if processDef.getElementsByTagName('module')[0].firstChild is not None:
+            module = processDef.getElementsByTagName('module')[0].firstChild.nodeValue
+
+    if len(processDef.getElementsByTagName('joinPub')) == 1:
+        if processDef.getElementsByTagName('joinPub')[0].firstChild is not None:
+            joinPub = processDef.getElementsByTagName('joinPub')[0].firstChild.nodeValue
+
+    if len(processDef.getElementsByTagName('loggingLevel')) == 1:
+        if processDef.getElementsByTagName('loggingLevel')[0].firstChild is not None:
+            loggingLevel = processDef.getElementsByTagName('loggingLevel')[0].firstChild.nodeValue
+
+    if len(processDef.getElementsByTagName('configOverridesFile')) == 1:
+        if processDef.getElementsByTagName('configOverridesFile')[0].firstChild is not None:
+            configOverridesFile = processDef.getElementsByTagName('configOverridesFile')[0].firstChild.nodeValue
+
+    if len(processDef.getElementsByTagName('classpath')) == 1:
+        if processDef.getElementsByTagName('classpath')[0].firstChild is not None:
+            extra_jar_class_path = processDef.getElementsByTagName('classpath')[0].firstChild.nodeValue
+
+    if len(processDef.getElementsByTagName('arguments')) == 1:
+        if processDef.getElementsByTagName('arguments')[0].firstChild is not None:
+            arguments = processDef.getElementsByTagName('arguments')[0].firstChild.nodeValue
+
+    if extra_jar_class_path is not None:
+        classpath = get_classpath(extra_jar_class_path)
+
+    is_script = True if scriptFile is not None else False
+    start_class = 'global.genesis.process.GenesisProcessBootstrap'
+
+    # We can only build a classpath for a known module OR for a script
+    if module is not None or is_script:
+        classpath += genesis.buildClasspathForModules(module.split(','))
+
+    if is_script:
+        if language is None:
+            language = 'groovy'
+
+        if language == 'groovy':
+            if module != 'genesis-groovy':
+                classpath += ":" + genesis.buildClasspathForModules(['genesis-groovy'])
+            if module is None:
+                module = 'genesis-groovy'
+
+            scanPackage = mergeScanPackage(scanPackage, 'global.genesis.groovy')
+        elif language == 'kotlin':
+            if module != 'genesis-kotlin':
+                classpath += ":" + genesis.buildClasspathForModules(['genesis-kotlin'])
+            if module is None:
+                module = 'genesis-kotlin'
+
+            scanPackage = mergeScanPackage(scanPackage, 'global.genesis.kotlin')
+        elif language == 'R':
+            if module != 'r-java':
+                classpath += ":" + genesis.buildClasspathForModules(['r-java'])
+            if module is None:
+                module = 'r-java'
+
+            scanPackage = mergeScanPackage(scanPackage, 'global.genesis.newr')
+            options = options + ' ' + ' -Drscript=' + scriptFile
+        elif language == 'pal':
+            if module is None:
+                print("Module must be specified when setting language as pal. Process will not start.")
+                sys.exit(3)
+
+        else:
+            print("Unknown scripting engine. Process will not start.")
+            sys.exit(3)
+
+    sys_def = genesis.read_system_definition()
+    write_to_manifest = sys_def.get("WriteClasspathToManifest", "false") == "true"
+
+    if not write_to_manifest:
+        os.environ['CLASSPATH'] = classpath
+
+    if classpath != "":
+        for arg in [x for x in argv if x.startswith("-D") or x.startswith("-agentlib")]:  # add system properties
+            options = options + ' ' + arg
+
+        if "opentelemetry-javaagent" in options:  # running with open telemetry java agent
+            if "-Dotel.service.name" not in options:
+                options = options + ' -Dotel.service.name=' + processName
+            if "-Dotel.metrics.exporter" not in options:  # disable metrics exporting by default
+                options = options + ' -Dotel.metrics.exporter=none'
+            if "-Dotel.logs.exporter" not in options:  # disable logs exporting by default
+                options = options + ' -Dotel.logs.exporter=none'
+
+        if 'DisableHeapDumps' not in sys_def or (
+                'DisableHeapDumps' in sys_def and str(sys_def['DisableHeapDumps']).upper() != 'TRUE'):
+            options = options + ' -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=' + getHeapDumpPath(processName)
+
+        class_path_dir = os.environ['GENESIS_HOME'] + '/generated/classpath/'
+
+        if write_to_manifest:
+            startCmd = 'java -cp ' + class_path_dir + processName + '.jar' + jvm.JVM_DEFAULT_ARGS + options + ' ' + start_class + ' -name ' + processName
+        else:
+            startCmd = 'java ' + jvm.JVM_DEFAULT_ARGS + options + ' ' + start_class + ' -name ' + processName
+
+        if is_script:
+            startCmd += ' -script ' + scriptFile
+
+        startCmd += ' -scan ' + scanPackage
+
+        if module:
+            startCmd += ' -module ' + module
+        if configFile:
+            startCmd += ' -config ' + configFile
+        if loggingLevel:
+            startCmd += ' -loggingLevel ' + loggingLevel
+        if configOverridesFile:
+            startCmd += ' -configOverridesFile ' + configOverridesFile
+        if joinPub:
+            startCmd += ' -joinPub ' + joinPub
+        if language:
+            startCmd += ' -language ' + language
+        if arguments:
+            startCmd += ' ' + arguments
+        for arg in [x for x in argv if x not in ["--dump"]]:  # filter special flags out
+            startCmd += ' ' + arg
+
+        if verbose:
+            startCmd += " &"
+        else:
+            startCmd += (' >/dev/null 2> $L/' + processName + '.log.err &' if "--dump" not in argv else "")
+
+    os.system(startCmd)
+    processRestartDir = os.environ["GENESIS_HOME"] + "/runtime/processRestartFlags/"
+
+    if os.path.isfile(processRestartDir + processName + ".txt"):
+        os.remove(processRestartDir + processName + ".txt")
+        genesis.logAction('Deleting process restarter flag for ' + processName)
+
+
+def get_classpath(extraClasspath):
+    classpath = ""
+    ss_classpath = ""
+    extra_jars = extraClasspath.split(",")
+    for jar in extra_jars:
+        found_jar = genesis.findJar(jar)
+        if "site-specific" not in found_jar:
+            classpath += found_jar + ":"
+        else:
+            ss_classpath += found_jar + ":"
+
+        dependency_jars = genesis.getDependenciesForJar(found_jar)
+        for dependencyJar in dependency_jars:
+            found_dependency_jar = genesis.findJar(dependencyJar)
+            if found_dependency_jar is not None:
+                if "site-specific" not in found_dependency_jar:
+                    classpath += found_dependency_jar + ":"
+                else:
+                    ss_classpath += found_dependency_jar + ":"
+    return ss_classpath + classpath
+
+
+def filter_arguments(args_to_exclude):
+    filtered_args = []
+    for arg in sys.argv[1:]:
+        if arg not in args_to_exclude:
+            filtered_args.append(arg)
+    return filtered_args
+
+
+if len(sys.argv) < 2:
+    printUsage()
+    sys.exit(2)
+
+processName = args.processName
+verbose = args.verbose
+if not resourceValidator.validate_processes_exists([processName]):
+    print('Process <' + processName + '> does not exist.')
+    exit(1)
+
+if args.cluster:
+    exec_args = filter_arguments(['-c', '--cluster'])
+    sys.exit(daemonCommon.execute_remote_call(exec_args, daemonCommon.read_hostnames_from_definition(), sys.argv))
+
+elif args.hostname:
+    if not resourceValidator.validate_hosts_exists(args.hostname):
+        print('One or more hosts does not exist.')
+        exit(1)
+
+    exec_args = filter_arguments(['-s', '--hostname'] + args.hostname)
+    sys.exit(daemonCommon.execute_remote_call(exec_args, args.hostname, sys.argv))
+
+elif genesis.checkProcessIsRunning(processName):
+    print('Process is already running')
+    sys.exit(1)
+else:
+    genesis.log()
+    moveLogs(processName)
+    startProcess(processName, sys.argv[2:], verbose)
+    sys.exit(0)

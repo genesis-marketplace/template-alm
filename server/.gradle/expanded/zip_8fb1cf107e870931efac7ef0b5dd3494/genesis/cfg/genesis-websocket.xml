@@ -1,0 +1,87 @@
+<!--
+!
+!   System              : GENESIS Business Library
+!   Sub-System          : RFQ Process Definition
+!   Version             : 1.0
+!   Copyright           : (c) GENESIS
+!   Date                : 27th January 2015
+!
+!   Function : Defines the rules for the Web Socket adapter.
+!
+!   Modification History
+!
+-->
+<webSocketServer>
+
+    <!--settings>
+        <messaging>
+            <keyStoreLocation>
+                /home/rfq/keystore.jks
+            </keyStoreLocation>
+            <keyStorePassword>
+                password
+            </keyStorePassword>
+        </messaging>
+    </settings-->
+
+    <socketPort>9064</socketPort>
+
+    <http>
+        <handlers>
+            <httpServerCodec>
+                <maxInitialLineLength>4096</maxInitialLineLength>
+                <maxHeaderSize>8192</maxHeaderSize>
+                <maxChunkSize>8192</maxChunkSize>
+                <validateHeaders>true</validateHeaders>
+                <initialBufferSize>128</initialBufferSize>
+            </httpServerCodec>
+            <httpObjectAggregator>
+                <maxContentLength>262144</maxContentLength>
+                <closeOnExpectationFailed>false</closeOnExpectationFailed>
+            </httpObjectAggregator>
+        </handlers>
+    </http>
+    <!--route target="RFQ_ETH">
+        <where>
+            <![CDATA[
+            return in.getString('MESSAGE_TYPE').startsWith('TXN_')
+            ]]>
+        </where>
+
+        <requestMap>
+        </requestMap>
+
+        <responseMap>
+        </responseMap>
+    </route>
+
+    <route target="RFQ_REQSVR">
+        <where>
+            <![CDATA[
+            return in.getString('MESSAGE_TYPE').startsWith('REQ_')
+            ]]>
+        </where>
+
+        <requestMap>
+        </requestMap>
+
+        <responseMap>
+        </responseMap>
+    </route>
+
+    <route target="RFQ_DAQSVR">
+        <where>
+            <![CDATA[
+            return true
+            ]]>
+        </where>
+
+        <requestMap>
+        </requestMap>
+
+        <responseMap>
+        </responseMap>
+    </route-->
+
+</webSocketServer>
+

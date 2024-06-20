@@ -1,0 +1,4 @@
+#!/bin/bash
+
+output=$(python -c "import genesis; exit(genesis.checkDaemonIsRunning())" 2>&1 >/dev/null)
+kill $output >/dev/null 2>&1

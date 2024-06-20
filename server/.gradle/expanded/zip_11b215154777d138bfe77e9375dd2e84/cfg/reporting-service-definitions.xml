@@ -1,0 +1,15 @@
+<!--
+!
+!   System              : Genesis Business Library
+!   Sub-System          : reporting Configuration
+!   Version             : 1.0
+!   Copyright           : (c) Genesis
+!   Date                : 25 January 2022
+!   Function : Provide Service Definitions Config for reporting.
+!
+!   Modification History
+!
+-->
+<configuration>
+    <service host="localhost" name="REPORTING_MANAGER" port="8040" secure="false"/>
+</configuration>

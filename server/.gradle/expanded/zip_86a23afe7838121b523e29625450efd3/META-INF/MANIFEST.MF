@@ -1,0 +1,6 @@
+Manifest-Version: 1.0
+Class-Path: kotlin-stdlib-1.9.22.jar annotations-13.0.jar
+Implementation-Vendor: global.genesis
+Implementation-Title: genesis-notify-config
+Implementation-Version: 8.0.0
+

@@ -1,0 +1,45 @@
+<protoBufAdapter>
+
+	<connection>
+		<hostname>localhost</hostname>
+		<port>23000</port>
+		<!-- Remove multicastInterface definition if direct socket connection is used -->
+		<multicastInterface>eth0</multicastInterface>
+	</connection>
+
+	<protoBufConnection name="LEVEL_1" mapToTable="INSTRUMENT_L1_PRICE" seedKey="INSTRUMENT_PRICE_BY_INSTRUMENT_CODE">
+
+		<protoBufMessage name="INSTRUMENT_L1_PRICE">
+			<fields>
+				<field modifier="required" name="LOW_PRICE" type="double" tag="1"/>
+				<field modifier="required" name="HIGH_PRICE" type="double" tag="2"/>
+				<field modifier="required" name="BID_PRICE" type="double" tag="3"/>
+				<field modifier="required" name="ASK_PRICE" type="double" tag="4"/>
+				<field modifier="required" name="BID_SIZE" type="int32" tag="5"/>
+				<field modifier="required" name="ASK_SIZE" type="int32" tag="6"/>
+				<field modifier="required" name="VWAP" type="double" tag="7"/>
+				<field modifier="required" name="PCT_CHANGE" type="double" tag="8"/>
+				<field modifier="required" name="OPEN_PRICE" type="double" tag="9"/>
+				<field modifier="required" name="INSTRUMENT_CODE" type="string" tag="10"/>
+			</fields>
+			<size>256</size>
+		</protoBufMessage>
+
+		<fields>
+			<![CDATA[
+			rec.setDouble('LOW_PRICE', data['LOW_PRICE'])
+			rec.setDouble('HIGH_PRICE', data['HIGH_PRICE'])
+			rec.setDouble('EMS_BID_PRICE', data['BID_PRICE'])
+			rec.setDouble('EMS_ASK_PRICE', data['ASK_PRICE'])
+			rec.setDouble('BID_SIZE', data['BID_SIZE'])
+			rec.setDouble('ASK_SIZE', data['ASK_SIZE'])
+			rec.setDouble('VWAP', data['VWAP'])
+			rec.setDouble('PCT_CHANGE', data['PCT_CHANGE'])
+			rec.setDouble('OPEN_PRICE', data['OPEN_PRICE'])
+			rec.setString('INSTRUMENT_CODE', data['INSTRUMENT_CODE'])
+			]]>
+		</fields>
+
+	</protoBufConnection>
+
+</protoBufAdapter>

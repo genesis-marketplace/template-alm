@@ -1,0 +1,25 @@
+<!--
+!
+!   System              : DTA Business Library
+!   Sub-System          : AUTH Configuration
+!   Version             : 1.0
+!   Copyright           : (c) DTA
+!
+!   Function : Provide Process Defintions Config for AUTH.
+!
+!   Modification History
+!
+-->
+<processes>
+    <process name="REPORTING_MANAGER">
+        <groupId>REPORTING</groupId>
+        <start>true</start>
+        <module>reporting-app</module>
+        <options>-Xmx512m -DXSD_VALIDATE=false -DRedirectStreamsToLog=true</options>
+        <package>global.genesis.eventhandler,global.genesis.reporting,global.genesis.dataserver.pal,global.genesis.requestreply.pal</package>
+        <loggingLevel>INFO,DATADUMP_OFF</loggingLevel>
+        <script>reporting-dataserver.kts,reporting-reqrep.kts</script>
+        <language>pal</language>
+        <description>Management of reporting data</description>
+    </process>
+</processes>

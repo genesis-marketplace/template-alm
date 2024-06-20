@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+
+import sys
+import os
+import genesis
+import daemonCommon
+import argparse
+import time
+import resourceValidator
+import pathlib
+
+def printConsoleMessage(pid, force):
+    killMessage = 'force killing ' if force else 'killing '
+    print(killMessage + pid)
+    genesis.log()
+
+def killProcess(pid, force):
+    if force:
+        cmd = 'kill -9 ' + pid
+    else:
+        cmd = 'kill ' + pid
+    os.system(cmd)
+
+
+parser = argparse.ArgumentParser(description='Kills a Genesis process.', usage='killProcess processName [--hostname <[hosts names]>][--force] [--wait]')
+parser.add_argument('processName', help='processName')
+parser.add_argument('--hostname', '-s', dest='hostname', help='Hosts Name or "cluster" for all hosts', nargs='+')
+parser.add_argument('--force', '-f', dest='force', help='forcefully kills a process', action="store_true")
+parser.add_argument('--wait', '-w', dest='wait', help='How many seconds to wait before force kill',  type=int, default=10)
+parser.add_argument('--cluster', '-c', dest='cluster', help='Sends the command across the cluster nodes', action="store_true")
+args, unknown = parser.parse_known_args()
+
+processName = args.processName
+if not resourceValidator.validate_processes_exists([processName]):
+    print('Process <' + processName + '> does not exist.')
+    exit(1)
+
+pid = genesis.checkProcessIsRunning(processName)
+
+force = True if args.force else False
+wait = args.wait
+
+if args.cluster:
+    if pid is not None:
+        printConsoleMessage(pid, force)
+
+    return_code = daemonCommon.execute_remote_call([processName], daemonCommon.read_hostnames_from_definition(), sys.argv)
+    sys.exit(return_code)
+
+if args.hostname:
+    if not resourceValidator.validate_hosts_exists(args.hostname):
+        print('One or more hosts does not exist.')
+        sys.exit(1)
+
+    if pid is not None:
+        printConsoleMessage(pid, force)
+
+    return_code = daemonCommon.execute_remote_call([processName], args.hostname, sys.argv)
+    sys.exit(return_code)
+
+if pid is not None:
+    printConsoleMessage(pid, force)
+    killProcess(pid, force)
+    i = 0
+    while pid is not None:
+        if i == wait:
+            print('killProcess timed out after ' + str(wait) + ' seconds - force killing')
+            killProcess(pid, True)
+            break
+        i = i + 1
+        time.sleep(1)
+        pid = genesis.checkProcessIsRunning(processName)
+    if pid is None:
+        processRestartDir = os.environ["GENESIS_HOME"]+'/runtime/processRestartFlags/'
+        if pathlib.Path(processRestartDir).exists():
+            pathlib.Path(processRestartDir + processName + '.txt').touch()
+            genesis.log()
+        else:
+            pathlib.Path(processRestartDir).mkdir(parents=True, exist_ok=True)
+            pathlib.Path(processRestartDir + processName + '.txt').touch()
+            genesis.log()
+else:
+    print('Process is not running')
+

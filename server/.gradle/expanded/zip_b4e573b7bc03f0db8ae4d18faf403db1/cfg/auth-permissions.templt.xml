@@ -1,0 +1,163 @@
+<!--
+!
+!   System              : DTA Business Library
+!   Sub-System          : AUTH Configuration
+!   Version             : 1.0
+!   Copyright           : (c) DTA
+!
+!   Function : Provide Permissions Logic related to AUTH.
+!
+!   Modification History
+!
+-->
+<dynamicPermissions>
+
+    <preExpression>
+        <![CDATA[
+            import java.util.Collections
+            import com.google.common.util.concurrent.Futures
+            import com.google.common.util.concurrent.ListenableFuture
+            import com.google.common.util.concurrent.FutureCallback
+            import com.google.common.util.concurrent.MoreExecutors
+            import io.reactivex.rxjava3.core.SingleEmitter
+            import io.reactivex.rxjava3.core.Flowable
+            import io.reactivex.rxjava3.core.Single
+            import io.reactivex.rxjava3.core.Maybe
+            import static global.genesis.auth.perms.processor.PermsProcessorUtils.*
+            import com.github.benmanes.caffeine.cache.Cache;
+            import com.github.benmanes.caffeine.cache.Caffeine;
+            import java.util.Optional
+            import java.util.concurrent.TimeUnit
+            import global.genesis.auth.perms.model.AuthUpdateType
+            import global.genesis.db.rx.RxDb
+
+            static Maybe<DbRecord> getUserRecord(RxDb db, String userName) {
+                final DbRecord userRecord = new DbRecord("USER")
+                userRecord.setString("USER_NAME", userName)
+                return rxDb.get(userRecord, "USER_BY_NAME")
+            }
+
+            {{#ADMIN_PERMISSION_ENTITY_TABLE}}
+            {{#ADMIN_PERMISSION_ENTITY_FIELD}}
+            //Only template if we have the table field and entity field
+
+            static String ENTITY_TABLE = "{{ADMIN_PERMISSION_ENTITY_TABLE}}"
+            static String SHORTENED_INDEX_NAME = "{{ADMIN_PERMISSION_ENTITY_FIELD}}".replaceFirst(ENTITY_TABLE, "")
+            static String ENTITY_TABLE_INDEX = "${ENTITY_TABLE}_BY${SHORTENED_INDEX_NAME}"
+
+            static String USER_ENTITY_MAP = "USER_${ENTITY_TABLE}_MAP"
+            static String USER_ENTITY_MAP_INDEX = "${USER_ENTITY_MAP}_BY_{{ADMIN_PERMISSION_ENTITY_FIELD}}"
+
+            static Set<String> getUsernamesForEntity(RxDb db, String entityId, String multiEntityId){
+                  final DbRecord record = new DbRecord(USER_ENTITY_MAP)
+                  record.setString("{{ADMIN_PERMISSION_ENTITY_FIELD}}", entityId)
+                  {{^ADMIN_PERMISSION_MULTI_ENTITY_FIELD}}
+                  // If multi has not been defined
+                  return db.getRange(record, USER_ENTITY_MAP_INDEX, 1).map { it.getString("USER_NAME") }.toList().blockingGet() as Set<String>
+                  {{/ADMIN_PERMISSION_MULTI_ENTITY_FIELD}}
+
+                  {{#ADMIN_PERMISSION_MULTI_ENTITY_FIELD}}
+                  // If multi has been defined. ignore for now
+                  record.setString("{{ADMIN_PERMISSION_MULTI_ENTITY_FIELD}}", multiEntityId)
+                  return db.getRange(record, USER_ENTITY_MAP_INDEX, 2).map { it.getString("USER_NAME") }.toList().blockingGet() as Set<String>
+                  {{/ADMIN_PERMISSION_MULTI_ENTITY_FIELD}}
+            }
+
+            static Maybe<DbRecord> getEntityRecord(RxDb db, String entityId){
+                  final DbRecord record = new DbRecord(ENTITY_TABLE)
+                  record.setString("{{ADMIN_PERMISSION_ENTITY_FIELD}}", entityId)
+                  return db.get(record, ENTITY_TABLE_INDEX)
+            }
+
+           // TODO Use caching below if performance is not good enough.
+
+           // static Cache<String, Set<String>> entityCache = Caffeine.newBuilder()
+           //                         .maximumSize(1000)
+           //                         .initialCapacity(1000)
+           //                         .expireAfterWrite(120, TimeUnit.SECONDS)
+           //                         .build()
+
+           // static List<String> getCachedUsernamesForEntity(String entityId) {
+           //     return entityCache.get(entityId){
+           //         getUsernamesForEntity(rxDb, entityId)
+           //     }
+           // }
+
+            {{/ADMIN_PERMISSION_ENTITY_FIELD}}
+            {{/ADMIN_PERMISSION_ENTITY_TABLE}}
+        ]]>
+    </preExpression>
+
+    <entity name="USER_VISIBILITY"
+            tableName="USER"
+            maxEntries="2000"
+            idField="USER_NAME">
+        <![CDATA[
+            final DbRecord targetUser = user
+            return Flowable.fromIterable(users).map { permissionedUser ->
+                final String userName = permissionedUser.getString("USER_NAME")
+                if(permissionedUser.getString("ACCESS_TYPE") == "ALL"){
+                    new AuthEntry(userName, entityId, true)
+                } else {
+                    // TODO Does not support multi entity yet.
+                    new AuthEntry(userName, entityId, targetUser.getString("{{ADMIN_PERMISSION_ENTITY_FIELD}}") == permissionedUser.getString("{{ADMIN_PERMISSION_ENTITY_FIELD}}"))
+                }
+            }
+            ]]>
+    </entity>
+
+    {{#ADMIN_PERMISSION_ENTITY_TABLE}}
+    <!-- Only template if we have the table field -->
+
+    {{#ADMIN_PERMISSION_ENTITY_FIELD}}
+    <!-- Only template if we have the entity field -->
+
+    {{^ADMIN_PERMISSION_MULTI_ENTITY_FIELD}}
+    <!-- If multi has not been defined -->
+    <entity name="ENTITY_VISIBILITY"
+            tableName="{{ADMIN_PERMISSION_ENTITY_TABLE}}"
+            maxEntries="20000"
+            idField="{{ADMIN_PERMISSION_ENTITY_FIELD}}" >
+        <updateOn table="USER_{{ADMIN_PERMISSION_ENTITY_TABLE}}_MAP">
+            <entities>
+                <![CDATA[
+                 getEntityRecord(rxDb, genericRecord.getString("{{ADMIN_PERMISSION_ENTITY_FIELD}}")).toFlowable()
+            ]]>
+            </entities>
+            <users>
+                <![CDATA[
+                 getUserRecord(rxDb, genericRecord.getString("USER_NAME")).toList()
+            ]]>
+            </users>
+        </updateOn>
+        <![CDATA[
+            final Set<String> validUsers = getUsernamesForEntity(rxDb, entityId, null)
+            return Flowable.fromIterable(users).map { user ->
+                final String userName = user.getString("USER_NAME")
+                if(user.getString("ACCESS_TYPE") == "ALL"){
+                    new AuthEntry(userName, entityId, true)
+                } else {
+                    new AuthEntry(userName, entityId, userName in validUsers)
+                }
+            }
+        ]]>
+    </entity>
+    {{/ADMIN_PERMISSION_MULTI_ENTITY_FIELD}}
+
+    {{#ADMIN_PERMISSION_MULTI_ENTITY_FIELD}}
+    <!-- If multi has been defined. ignore for now -->
+    <entity name="{{ADMIN_PERMISSION_ENTITY_TABLE}}"
+            tableName="USER_{{ADMIN_PERMISSION_ENTITY_TABLE}}_MAP"
+            maxEntries="20000"
+            idField="{{ADMIN_PERMISSION_ENTITY_FIELD}}|{{ADMIN_PERMISSION_MULTI_ENTITY_FIELD}}" >
+        <![CDATA[
+            //TODO LATER
+        ]]>
+    </entity>
+    {{/ADMIN_PERMISSION_MULTI_ENTITY_FIELD}}
+
+    {{/ADMIN_PERMISSION_ENTITY_FIELD}}
+
+    {{/ADMIN_PERMISSION_ENTITY_TABLE}}
+
+</dynamicPermissions>

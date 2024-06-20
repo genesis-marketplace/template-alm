@@ -1,0 +1,630 @@
+#!/usr/bin/env python3
+# encoding: utf-8
+
+import sys
+import genesis
+import daemonCommon
+import os
+import time
+import platform
+import datetime
+import subprocess
+import genesis
+import subprocess, shlex
+from xml.dom import minidom
+from optparse import OptionParser
+import urllib.request, urllib.error, urllib.parse
+from urllib.error import URLError
+import json
+from socket import timeout
+from os import path
+from io import open
+
+DAEMON_HEARTBEAT_ERROR_MSG = "Daemon missing"
+DATABASE_HEARTBEAT_ERROR_MSG = "Database is down"
+
+ORANGE = 202
+BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE = list(range(8))
+genesisPrefix = "GENESIS"
+
+EXCLUCE_DIRS = {"generated", "runtime", "releases"}
+
+statuses = []
+
+def getParser():
+    parser = OptionParser(usage="usage: %prog [-v | -c | -a | -m | -u] polling_interval")
+    parser.add_option('-v', '--version', dest='version', action="store_true", default=False,
+                      help='Shows installed products versions.')
+    # parser.add_option('-w', '--watch', dest='watch', action="store_true", default=False, help='Keeps updating the state of the products regularly.')
+    parser.add_option('-c', '--cfg', dest='cfg', action="store_true", default=False,
+                      help='Shows the config files used by each process.')
+    parser.add_option('-a', '--all', dest='all', action="store_true", default=False,
+                      help='Shows all config information.')
+    parser.add_option('-m', '--monitors', dest='monitors', action="store_true", default=False,
+                      help='Shows state monitors information.')
+    parser.add_option('-u', '--unhealthy', dest='unhealthy', action="store_true", default=False,
+                      help='Shows unhealthy processes only.')
+    parser.add_option('--down', dest='statuses', action='callback', callback=addStatus, help='Shows DOWN processes.')
+    parser.add_option('--warning', dest='statuses', action='callback', callback=addStatus, help='Shows WARNING processes.')
+    parser.add_option('--error', dest='statuses', action='callback', callback=addStatus, help='Shows ERROR processes.')
+    parser.add_option('--running', dest='statuses', action='callback', callback=addStatus, help='Shows RUNNING processes.')
+    parser.add_option('--unknown', dest='statuses', action='callback', callback=addStatus, help='Shows UNKNOWN processes.')
+    parser.add_option('--healthy', dest='statuses', action='callback', callback=addStatus, help='Shows HEALTHY processes.')
+    parser.add_option('--missing', dest='statuses', action='callback', callback=addStatus, help='Shows MISSING processes.')
+    parser.add_option('--starting', dest='statuses', action='callback', callback=addStatus, help='Shows STARTING processes.')
+    parser.add_option('--standby', dest='statuses', action='callback', callback=addStatus, help='Shows STANDBY processes.')
+    return parser
+
+
+# following from Python cookbook, #475186
+def has_colours(stream):
+    if not hasattr(stream, "isatty"):
+        return False
+    if not stream.isatty():
+        return False  # auto color only on TTYs
+    try:
+        import curses
+        curses.setupterm()
+        return curses.tigetnum("colors") > 2
+    except:
+        # guess false in case of error
+        return False
+
+
+has_colours = has_colours(sys.stdout)
+
+
+def printout(text, foreground=WHITE, background=BLACK, brightness=1):
+    if foreground == ORANGE:
+        sys.stdout.write("\u001b[38;5;202m" + text)
+        sys.stdout.write("\u001b[37m")
+    elif has_colours:
+        seq = "\x1b[%d;%d;%dm" % (brightness, 30 + foreground, 40 + background) + text + "\x1b[0m"
+        sys.stdout.write(seq)
+    else:
+        sys.stdout.write(text)
+
+
+def clearScreen():
+    systemType = platform.system()
+    if systemType == 'Windows':
+        os.system('cls')
+    else:
+        os.system('clear')
+
+
+def printError(text: str):
+    printout(text, RED)
+
+
+def printOk(text: str):
+    printout(text, GREEN)
+
+
+def printWarning(text: str):
+    printout(text, ORANGE)
+
+
+processes = genesis.getListOfProcessNames()
+
+
+def calculateProcNameColLength() -> int:
+    longest = len(max(processes, key=len))
+    if longest > 29:
+        return longest + 1
+    else:
+        return 30
+
+
+def addStatus(option, opt_str, value, parser):
+    statuses.append(opt_str.replace('-', '').upper())
+
+blankField = 'n/a'
+
+parser = getParser()
+(options, args) = parser.parse_args()
+
+if options.version and options.all:
+    parser.error("options -v and -a are mutually exclusive")
+    sys.exit()
+
+if options.unhealthy and bool(statuses):
+    parser.error("Option [--unhealthy, -u] can't be used with other status options")
+    sys.exit()
+
+if options.unhealthy:
+    statuses = ["UNKNOWN", "RUNNING", "MISSING", "DOWN", "ERROR", "STARTING", "WARNING"]
+elif not bool(statuses):
+    statuses = ["UNKNOWN", "RUNNING", "MISSING", "HEALTHY", "DOWN", "ERROR", "STARTING", "STANDBY", "WARNING"]
+
+pidText = 'PID'
+procNameText = 'Process Name'
+portText = 'Port'
+statusText = 'Status'
+cpuText = 'CPU'
+memoryText = 'Memory'
+messageText = 'Message'
+monitorText = 'Monitors'
+
+procNameColLength = calculateProcNameColLength()
+screenWidth = 95 + (procNameColLength - 30)
+pidColLength = 8
+portColLength = 12
+procStatusLength = 15
+cpuUsageLength = 10
+memoryUsageLength = 10
+monitorColLen = 45
+procMessageColLength = 15
+
+if options.monitors:
+    screenWidth = screenWidth + monitorColLen
+    leftPaddingForMonitorCol = pidColLength + procNameColLength + portColLength + procStatusLength + cpuUsageLength + memoryUsageLength
+
+def printHeader():
+    productDetails = genesis.getDictOfProductDetails()
+    # genesis is hardcoded, we need to ensure the name is equal also in global-product-details.xml
+    version = 'Version:  ' + genesisPrefix + ' ' + productDetails['genesis']
+
+    header = '*' * screenWidth
+
+    headerText = genesisPrefix + ' Monitor'
+
+    bannerText = headerText.center(screenWidth, ' ')
+    versionText = version.center(screenWidth, ' ')
+
+    printout(header + '\n')
+    printout(bannerText + '\n')
+    printout(versionText + '\n')
+    printout(header + '\n')
+    printout('\n')
+
+
+def printStatuses(processes, isCoreProcess, dbStatus, previousValues=None):
+    if previousValues is None:
+        previousValues = {}
+
+    curPidText = [None] * len(processes)
+    curProcNameText = [None] * len(processes)
+    curPortText = [None] * len(processes)
+    status = [None] * len(processes)
+    curCpuUsage = [None] * len(processes)
+    curMemoryText = [None] * len(processes)
+    currentMessageText = [None] * len(processes)
+    cpuUsageText = [None] * len(processes)
+    statusColour = [GREEN] * len(processes)
+    additionalInfo = [None] * len(processes)
+    counter = 0
+
+    pids = genesis.checkProcessesAreRunning(processes)
+    details = genesis.getAdditionalServicesInformation(processes)
+    resourceUsages = getResourceUsages(pids)
+
+    is_running = is_daemon_running()
+    for process in processes:
+        curProcNameText[counter] = process.ljust(procNameColLength, ' ')
+        curPortText[counter] = formatPortText(details[counter]['port'], details[counter]['secure'])
+
+        # 6+5 from color encoding that increases width
+        # import pdb; pdb.set_trace();
+        status_message = ''
+        if pids[counter] is None:
+            curPidText[counter] = blankField.ljust(pidColLength, ' ')
+            status[counter] = 'MISSING'.ljust(procStatusLength, ' ')
+            statusColour[counter] = RED
+            curCpuUsage[counter] = blankField.ljust(cpuUsageLength, ' ')
+            curMemoryText[counter] = blankField.ljust(memoryUsageLength, ' ')
+
+            if is_running:
+                currentMessageText[counter] = blankField.ljust(procMessageColLength, ' ')
+                status_message = get_process_metadata(process)
+                if 'PORT' in status_message:
+                    curPortText[counter] = formatPortText(status_message['PORT'], details[counter]['secure'])
+            else:
+                currentMessageText[counter] = DAEMON_HEARTBEAT_ERROR_MSG
+        else:
+            resources = resourceUsages[counter]
+            curPidText[counter] = pids[counter].ljust(pidColLength, ' ')
+            cpuUsageText[counter] = "%.2f" % resources[0]
+            curCpuUsage[counter] = cpuUsageText[counter].ljust(10, ' ')
+            memUsage = "%.2f" % resources[1]
+            curMemoryText[counter] = memUsage.ljust(memoryUsageLength, ' ')
+            if is_running:
+                status_message = get_process_metadata(process)
+                if 'PORT' in status_message:
+                    curPortText[counter] = formatPortText(status_message['PORT'], details[counter]['secure'])
+                if dbStatus:
+                    if 'PROCESS_STATUS_MESSAGE' in status_message:
+                        currentMessageText[counter] = status_message['PROCESS_STATUS_MESSAGE'] \
+                            .ljust(procMessageColLength, ' ')
+                    else:
+                        currentMessageText[counter] = ''.ljust(procMessageColLength, ' ')
+                else:
+                    currentMessageText[counter] = DATABASE_HEARTBEAT_ERROR_MSG
+                    status_message = {'PROCESS_STATE_TEXT': 'DOWN', 'PROCESS_STATE_COLOR': RED}
+            else:
+                currentMessageText[counter] = ''
+                status_message = {'PROCESS_STATE_TEXT': 'RUNNING', 'PROCESS_STATE_COLOR': YELLOW}
+
+            if 'PROCESS_STATE_TEXT' in status_message:
+                if status_message['PROCESS_STATE_TEXT'] == 'UP':
+                    status[counter] = 'HEALTHY'.ljust(procStatusLength, ' ')
+                elif status_message['PROCESS_STATE_TEXT'] == 'UNKNOWN':
+                    status[counter] = 'RUNNING'.ljust(procStatusLength, ' ')
+                else:
+                    status[counter] = status_message['PROCESS_STATE_TEXT'].ljust(procStatusLength, ' ')
+            else:
+                status[counter] = 'UNKNOWN'.ljust(procStatusLength, ' ')
+            if 'PROCESS_STATE_COLOR' in status_message:
+                statusColour[counter] = status_message['PROCESS_STATE_COLOR']
+            else:
+                statusColour[counter] = WHITE
+
+        # show all cfgs of that process under the process
+        if options.cfg or options.all:
+            cfgs = genesis.getProcessConfigFiles(process)
+            scripts = genesis.getProcessAttribute(process, "script")
+            modules = genesis.getProcessAttribute(process, "module")
+
+            fullCfgPaths = list(map(fullFilePathForTuple, cfgs))
+            fullScriptsPaths = list(map(fullFilePathForList, scripts))
+
+            additionalInfo[counter] = printAdditionalInfo(modules + fullCfgPaths + fullScriptsPaths, pidColLength, 1)
+        counter = counter + 1
+
+    serverStartField = 'Start: {start}'.format(
+        start=genesis.getLastServerStart()
+    )
+
+    # strip microseconds
+    if '.' in serverStartField:
+        serverStartField = serverStartField.split('.')[0]
+
+    uptimeField = 'Uptime: {uptime}'.format(
+        uptime=genesis.getServerUptime()
+    )
+    spaceAfterServerStart = screenWidth - len(serverStartField) - len(uptimeField)
+
+    # Display header and product details on top of core processes only
+    if isCoreProcess:
+        printHeader()
+        printout(serverStartField)
+        printout(' ' * spaceAfterServerStart)
+        printout(uptimeField + '\n')
+
+        daemonStatusText='Daemon status: '
+        daemonStatus = daemonCommon.daemon_status()
+        if daemonStatus == 'STARTING':
+            daemonStatusColor = YELLOW
+        elif daemonStatus == 'MISSING':
+            daemonStatusColor = RED
+        else:
+            daemonStatusColor = GREEN
+
+        dateField = 'Date:  ' + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        spaceAfterDate = screenWidth - len(dateField) - len(daemonStatusText) - len(daemonStatus)
+
+        printout(dateField)
+        printout(' ' * spaceAfterDate)
+        printout(daemonStatusText)
+        printout(daemonStatus + '\n\n', daemonStatusColor)
+
+
+        if options.all or options.version:
+            printout("Product versions: \n\n")
+            productDetails = genesis.getDictOfProductDetails()
+            for k, v in list(productDetails.items()):
+                printout(k + ": " + v + '\n')
+            printout('\n')
+            if options.version:
+                sys.exit()
+
+        printout(pidText + ' ' * (pidColLength - len(pidText)))
+        printout(procNameText + ' ' * (procNameColLength - len(procNameText)))
+        printout(portText + ' ' * (portColLength - len(portText)))
+        printout(statusText + ' ' * (procStatusLength - len(statusText)))
+        printout(cpuText + ' ' * (cpuUsageLength - len(cpuText)))
+        printout(memoryText + ' ' * (memoryUsageLength - len(memoryText)))
+
+        if options.monitors:
+            printout(monitorText + ' ' * (monitorColLen - len(monitorText)))
+        printout(messageText + ' ' * (procMessageColLength - len(messageText)) + '\n')
+
+    print('=' * screenWidth + '\033[K') # clears everything after the cursor to the end of the line
+    for index in range(0, len(curPortText)):
+        if status[index].strip() in statuses:
+            printout(curPidText[index])
+            printout(curProcNameText[index], BLUE) if isCoreProcess else printout(curProcNameText[index])
+            printout(curPortText[index])
+            printout(status[index], statusColour[index])
+
+            if len(previousValues) == 0:
+                printout(curCpuUsage[index])
+                printout(curMemoryText[index])
+            else:
+                printChange(previousValues['prevCpu'][index], curCpuUsage[index])
+                printChange(previousValues['prevMem'][index], curMemoryText[index])
+
+            if options.monitors:
+                rightPaddingForMonitorCol = 0
+                emptyString = ''
+                if 'MISSING' not in status[index]:
+                    if dbStatus:
+                        monitorList = get_process_monitors(curProcNameText[index].strip())
+                        isFirstElement = True
+                        if monitorList is not None:
+                            for processMonitor in monitorList:
+                                printout(
+                                    emptyString.rjust(rightPaddingForMonitorCol) +
+                                    processMonitor['MONITOR_NAME'].ljust(monitorColLen, ' '),
+                                    processMonitor['MONITOR_STATE_COLOR'])
+                                print((processMonitor['MONITOR_MESSAGE']))
+                                if isFirstElement:
+                                    rightPaddingForMonitorCol = rightPaddingForMonitorCol + leftPaddingForMonitorCol
+                                    isFirstElement = False
+                    else:
+                        printout(emptyString.rjust(rightPaddingForMonitorCol) + 'DATABASE_STATUS'.ljust(monitorColLen, ' '))
+            else:
+                printout(currentMessageText[index] + ' ' * (procMessageColLength - len(messageText)))
+            printout('\n')
+            additionalInfoList = additionalInfo[index]
+            if additionalInfoList is not None and len(additionalInfoList) != 0:
+                for additionalInfoIndex in range(0, len(additionalInfoList)):
+                    printout(additionalInfoList[additionalInfoIndex] + '\n')
+    return {'prevCpu': curCpuUsage, 'prevMem': curMemoryText}
+
+def formatPortText(port: str, secure: str) -> str:
+    return '{port}{secure}'.format(
+        port=port,
+        secure='\x1b[1;%dm' % (30 + GREEN) + ('\u221A' if secure == 'true' else ' ') + '\x1b[0m'
+    ).ljust(portColLength + 6 + 5, ' ')
+
+def fullFilePathForList(filename: str) -> str:
+    head, tail = filename[0], filename[1:]
+    head = fullFilePath(head)
+    return [head] + tail
+
+
+def get_process_metadata(process: str):
+    port = daemonCommon.get_daemon_port()
+    url = "http://localhost:" + port + "/processes/" + process + \
+          "/metadata"
+
+    statusDictionary = {}
+    try:
+        contents = urllib.request.urlopen(url=url, timeout=5).read()
+        json_process_message = json.loads(contents)
+        if json_process_message is not None:
+            processStatusText = json_process_message['STATUS']
+            statusDictionary['PROCESS_STATUS_MESSAGE'] = json_process_message['MESSAGE']
+            statusDictionary['PORT'] = json_process_message['PORT']
+            statusDictionary['PROCESS_STATE_TEXT'] = processStatusText
+            statusDictionary['PROCESS_STATE_COLOR'] = getProcessStateColor(processStatusText)
+            return statusDictionary
+        else:
+            return statusDictionary
+    except timeout:
+        printError("Error: daemon timeout\n")
+        return "Daemon timeout"
+    except URLError:
+        printError("Error: " + DAEMON_HEARTBEAT_ERROR_MSG + '\n')
+        sys.exit()
+    except KeyError:
+        printError(contents.decode('utf-8'))
+
+
+def get_process_monitors(procName):
+    monitorList = []
+    port = daemonCommon.get_daemon_port()
+    url = "http://localhost:" + port + "/processes/" + procName + "/monitors"
+    try:
+        contents = urllib.request.urlopen(url=url, timeout=30).read()
+
+        json_dict = {}
+        monitors = json.loads(contents)
+        for monitor in monitors:
+            monitor_dict = {'MONITOR_NAME': monitor['NAME']}
+            if "MESSAGE" in monitor:
+                monitor_dict['MONITOR_MESSAGE'] = monitor['MESSAGE']
+            else:
+                monitor_dict['MONITOR_MESSAGE'] = ''
+            if "STATE" in monitor:
+                monitor_dict['MONITOR_STATE_COLOR'] = getMonitorStateColor(
+                    monitor['STATE'])
+            else:
+                monitor_dict['MONITOR_STATE_COLOR'] = BLACK
+
+            monitorList.append(monitor_dict)
+        return monitorList
+    except URLError:
+        printError("Error: " + DAEMON_HEARTBEAT_ERROR_MSG + '\n')
+        sys.exit()
+
+
+def getMonitorStateColor(monitor_state: str):
+    if monitor_state in ['DOWN', 'ERROR']:
+        return RED
+    elif monitor_state in ['STANDBY', 'RUNNING']:
+        return YELLOW
+    elif monitor_state == 'WARNING':
+        return ORANGE
+    else:
+        return GREEN
+
+
+def getProcessStateColor(process_status_text: str):
+    if process_status_text in ['DOWN', 'ERROR']:
+        return RED
+    elif process_status_text in ['UP']:
+        return GREEN
+    elif process_status_text == 'WARNING':
+        return ORANGE
+    else:
+        return YELLOW
+
+
+def is_daemon_running():
+    port = daemonCommon.get_daemon_port()
+    try:
+        urllib.request.urlopen("http://localhost:" + port + "/heartbeat").read()
+        return True
+    except URLError:
+        return False
+
+
+def is_database_running():
+    port = daemonCommon.get_daemon_port()
+    url = "http://localhost:" + port + "/database/status"
+    try:
+        value = urllib.request.urlopen(url=url, timeout=30).read()
+        if value == 'null':
+            return False
+        return True
+    except URLError:
+        return False
+    except timeout:
+        return False
+
+
+def fullFilePathForTuple(filename):
+    head, tail = filename[0], filename[1:]
+    head = fullFilePath(head)
+    return (head,) + tail
+
+
+def fullFilePath(filename):
+    prefix = os.environ["GENESIS_HOME"]
+    dirs = list(set(os.listdir(prefix)) - set(EXCLUCE_DIRS))
+
+    for dir in dirs:
+        if os.path.isfile(prefix + dir + '/cfg/' + filename):
+            return dir + '/cfg/' + filename
+
+    return filename
+
+
+def printChange(prevValue, curValue):
+    if prevValue == curValue:
+        printout(curValue, WHITE, BLACK)
+    else:
+        printout(curValue, BLACK, WHITE, 0)
+
+
+def printStatsChange(prevValue, curValue):
+    if prevValue == curValue:
+        printout(curValue)
+    elif prevValue > curValue:
+        printout(curValue, GREEN)
+    else:
+        printout(curValue, RED)
+
+
+def printAdditionalInfo(infos, spacing_per_level=4, nesting=1, parent_is_last_child=False, prefix=None, totalBuf=None):
+    if totalBuf is None:
+        totalBuf = []
+
+    last = len(infos) - 1
+
+    for i, item in enumerate(infos):
+        buf = (spacing_per_level * nesting) * ' '
+
+        # if nesting is bigger than 1 we need to put the dashes from the previous levels
+        if nesting > 1:
+            buflist = list(buf)
+            # for i, x in enumerate(buflist):
+            #     if (4+i)%spacing_per_level==0 and not parent_is_last_child:
+            #         buflist[i] = u'\u2503'
+            if not parent_is_last_child:
+                buflist[-spacing_per_level] = '\u2502'
+            buf = "".join(buflist)
+
+        if i != last:
+            #      u'├'
+            buf += '\u251C'
+        else:
+            #      u'└'
+            buf += '\u2514'
+
+        #      3 * u'─'
+        buf += 3 * '\u2500' + ' '
+
+        if prefix is not None:
+            buf += prefix
+
+        buf += item[0]
+        totalBuf.append(buf)
+
+        # Do not print here, print at the printing moment
+        # printout(buf+'\n')
+        # recursevely print nested XMLs
+        if len(item) > 1:
+            printAdditionalInfo(item[1], spacing_per_level, nesting + 1, i == len(infos) - 1, None, totalBuf)
+
+    return totalBuf
+
+
+def getResourceUsage(pid):
+    d = [i for i in subprocess.getoutput("ps aux").split("\n")
+         if i.split()[1] == str(pid)]
+    return (float(d[0].split()[2]), float(d[0].split()[3])) if d else None
+
+
+def getResourceUsages(pids):
+    resourceUsages = [None] * len(pids)
+    psResults = subprocess.getoutput("ps aux").split("\n")
+    counter = 0
+    for pid in pids:
+        d = [i for i in psResults if i.split()[1] == str(pid)]
+        resourceUsages[counter] = (float(d[0].split()[2]), float(d[0].split()[3])) if d else None
+        counter = counter + 1
+
+    return resourceUsages
+
+
+coreProcesses = genesis.getCoreProcesses()
+
+nonCoreProcesses = genesis.getNonCoreProcesses()
+
+clearScreen()
+
+# has watching interval in it
+if len(args) > 0:
+    try:
+        # minimum allowed is 0.5secs
+        polling_interval = max(int(args[0]), 0.5)
+
+        # hide cursor
+        os.system("tput civis")
+        rows, columns = os.popen('stty size', 'r').read().split()
+
+        if int(rows) < len(processes) + 13:  # minimum height to fit all processes
+            print("Terminal height insufficient for -w mode. Increase terminal height.")
+            sys.exit(1)
+        else:
+            coreProcessPreviousValue = {}
+            nonCoreProcessPreviousValue = {}
+            while True:
+                try:
+                    print("\033[0;0H")  # moves cursor position to 0,0
+                    dbStatus = is_database_running()
+                    coreProcessPreviousValue = printStatuses(coreProcesses, True, dbStatus,
+                                                             coreProcessPreviousValue)
+                    nonCoreProcessPreviousValue = printStatuses(nonCoreProcesses, False, dbStatus,
+                                                                nonCoreProcessPreviousValue)
+                    print("\033[J")  # clears everything in display after cursor position
+                    time.sleep(polling_interval)
+                except KeyboardInterrupt:
+                    clearScreen()
+                    print("Exiting...")
+                    raise
+                except:
+                    pass
+    except:
+        # make cursor visible again
+        os.system("tput cnorm")
+        pass
+else:
+    # just execute normaly if not watching statuses
+    dbStatus = is_database_running()
+    printStatuses(coreProcesses, True, dbStatus=dbStatus)
+    printStatuses(nonCoreProcesses, False, dbStatus=dbStatus)

@@ -1,0 +1,15 @@
+#!/bin/bash
+
+argv="$0 $*"
+python -c "import genesis; genesis.logAction(\"${argv}\")" >/dev/null 2>&1 &
+
+isServerRunning=$(python -c "import genesis; print(genesis.isServerDown())")
+
+if [[ ${isServerRunning} -eq 1 ]]
+then
+#    writing to stderr
+    >&2 echo 'One or more processes are running. Please stop all the processes in all cluster nodes and try again.'
+    exit 1
+fi
+
+JvmRun global.genesis.environment.scripts.DictionaryMigrationTool $*

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+!
+!   System              : DTA Core Library
+!   Sub-System          : DTA Configuration
+!   Version             : 1.0
+!   Copyright           : (c) DTA
+!   Date                : 8th January 2015
+!
+!   Function : Provide Logging log4j2 Config details for DTA.
+!
+!   Modification History
+!
+-->
+<Configuration>
+    <Appenders>
+
+        <RollingRandomAccessFile name="RollingFile" fileName="${env:GENESIS_HOME}/runtime/logs/${sys:PROCESS_NAME}.log"
+                                 filePattern="${env:GENESIS_HOME}/runtime/logs/currentRun/${sys:PROCESS_NAME}_%d{yyyy-MM-dd}-%i.log.gz"
+                                 ignoreExceptions="false" append="true" >
+            <PatternLayout>
+                <Pattern>%d{dd MMM yyyy HH:mm:ss.SSS} %-4relative [%t] %-5level %logger{35} - %m%n</Pattern>
+                <header>%d{dd MMM yyyy HH:mm:ss.SSS} %-4relative [%t] INFO  logger.config - New ${sys:PROCESS_NAME} log file created\n</header>
+            </PatternLayout>
+            <Policies>
+                <TimeBasedTriggeringPolicy/>
+            </Policies>
+            <DefaultRolloverStrategy max="30"/>
+        </RollingRandomAccessFile>
+
+        <RollingFile name="MetricsRollingFile" fileName="${env:GENESIS_HOME}/runtime/logs/${sys:PROCESS_NAME}.log.metrics"
+                     filePattern="${env:GENESIS_HOME}/runtime/logs/currentRun/${sys:PROCESS_NAME}_%d{yyyy-MM-dd}-%i.log.metrics.gz"
+                     ignoreExceptions="false" append="true" createOnDemand="true" bufferedIO="true">
+            <PatternLayout>
+                <Pattern>%d{dd MMM yyyy HH:mm:ss.SSS} %-4relative [%t] %-5level %logger{35} - %m%n</Pattern>
+            </PatternLayout>
+            <Policies>
+                <TimeBasedTriggeringPolicy/>
+            </Policies>
+            <DefaultRolloverStrategy max="30"/>
+        </RollingFile>
+    </Appenders>
+
+    <Loggers>
+        <AsyncLogger name="global.genesis." level="info" includeLocation="false" additivity="false">
+            <AppenderRef ref="RollingFile"/>
+        </AsyncLogger>
+
+        <AsyncLogger name="org.apache.commons.configuration" level="info" includeLocation="false" additivity="false">
+            <AppenderRef ref="RollingFile"/>
+        </AsyncLogger>
+
+        <AsyncLogger name="org.ehcache" level="info" includeLocation="false" additivity="false">
+            <AppenderRef ref="RollingFile"/>
+        </AsyncLogger>
+
+        <AsyncLogger name="global.genesis.metrics" level="debug" includeLocation="false" additivity="false">
+            <AppenderRef ref="MetricsRollingFile"/>
+        </AsyncLogger>
+
+        <AsyncRoot level="info" includeLocation="false">
+            <AppenderRef ref="RollingFile"/>
+        </AsyncRoot>
+    </Loggers>
+</Configuration>

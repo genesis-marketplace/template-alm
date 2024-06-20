@@ -1,0 +1,21 @@
+<!--
+!
+!   System              : DTA Core Library
+!   Sub-System          : DTA Configuration
+!   Version             : 1.0
+!   Copyright           : (c) DTA
+!   Date                : 8th January 2015
+!
+!   Function : Provide WebMon Config details for DTA.
+!
+!   Modification History
+!
+-->
+<WebMonConfig>
+    <socketPort>9056</socketPort>
+    <port>4567</port>
+    <maxNoRecords>10000</maxNoRecords>
+    <logoText>GENESIS</logoText>
+    <logoUrl>http://www.genesis.global</logoUrl>
+    <authDisabled>false</authDisabled>
+</WebMonConfig>

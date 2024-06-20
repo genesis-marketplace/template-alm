@@ -1,0 +1,53 @@
+#!/usr/bin/env python3
+
+import sys
+import os
+import genesis
+import argparse
+import daemonCommon
+import resourceValidator
+
+
+def startGroup(gid):
+    processes = genesis.getListOfProcessNamesByGroupId(gid)
+    for process in processes:
+        cmd = 'startProcess ' + process
+        os.system(cmd)
+
+
+def printUsage():
+    print("Usage: startGroup GROUP_ID...")
+
+
+parser = argparse.ArgumentParser(description='Starts a Genesis group processes.', usage='startGroup <[group_ids]> [--hostname <[hosts names]>][--force][--help]', add_help=False)
+parser.add_argument('groupIds', help='Group ids', nargs='+')
+parser.add_argument('--hostname', '-s', dest='hostname', help='Hosts Name or "cluster" for all hosts', nargs='+')
+parser.add_argument('--cluster', '-c', dest='cluster', help='Sends the command across the cluster nodes', action="store_true")
+args, unknown = parser.parse_known_args()
+
+
+if len(sys.argv) < 2:
+    printUsage()
+    sys.exit(0)
+
+if not resourceValidator.validate_process_groups_exists(args.groupIds):
+    print('One or more groups does not exist.')
+    exit(1)
+
+if args.cluster:
+    return_code = daemonCommon.execute_remote_call(args.groupIds, daemonCommon.read_hostnames_from_definition(), sys.argv)
+    sys.exit(return_code)
+
+elif args.hostname:
+    if not resourceValidator.validate_hosts_exists(args.hostname):
+        print('One or more hosts does not exist.')
+        exit(1)
+
+    return_code = daemonCommon.execute_remote_call(args.groupIds, args.hostname, sys.argv)
+    sys.exit(return_code)
+
+else:
+    genesis.log()
+
+    for gid in args.groupIds:
+        startGroup(gid)

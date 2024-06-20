@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+
+import sys
+import daemonCommon
+import os
+import genesis
+import datetime
+import time
+import gzip
+import shutil
+import subprocess
+import argparse
+import resourceValidator
+
+
+parser = argparse.ArgumentParser(description='Starts a Genesis server.', usage='startServer [--hostname <[hosts names]>]')
+parser.add_argument('--hostname', '-s', dest='hostname', help='Hosts Name or "cluster" for all hosts', nargs='+')
+parser.add_argument('--cluster', '-c', dest='cluster', help='Sends the command across the cluster nodes', action="store_true")
+parser.add_argument('--ignoreDaemon', '-i', dest='ignoreDaemon', help='Avoids killing/starting the daemon', action="store_true")
+parser.add_argument('--verbose', '-v', help='Starts in verbose mode, logs to console', action="store_true")
+args, unknown = parser.parse_known_args()
+
+
+def is_log_file(file):
+    return (
+        file.endswith('.log') or
+        file.endswith('.log.err') or
+        file.endswith('.log.gz') or
+        file.endswith('.log.err.gz')
+    )
+
+
+def move_logs():
+    src = os.environ["GENESIS_HOME"] + '/runtime/logs/'
+    dest = os.environ["GENESIS_HOME"] + '/runtime/logs/archive/'
+    curr_run_dir = os.environ["GENESIS_HOME"] + '/runtime/logs/currentRun/'
+
+    timestamp = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d_%H:%M:%S')
+    dest = dest + timestamp + '/'
+
+    if not os.path.exists(dest):
+        os.makedirs(dest)
+
+    print('Archiving existing process logs')
+
+    log_files = filter(is_log_file, os.listdir(src))
+
+    for file in log_files:
+        process = None
+        if file.endswith('log'):
+            process = file[:-4]
+        elif file.endswith('.log.err'):
+            process = file[:-8]
+
+        pid = genesis.checkProcessIsRunning(process)
+
+        if pid is None:
+            zipAndMoveFiles(file, src, dest)
+
+    if os.path.exists(curr_run_dir):
+        for file in os.listdir(curr_run_dir):
+            if file.endswith('.log') or file.endswith('.log.err'):
+                zipAndMoveFiles(file, curr_run_dir, dest)
+            else:
+                if os.path.exists(dest + file):
+                    shutil.move(curr_run_dir + file, dest + "{0}_{2}{1}".format(*os.path.splitext(file) + ('0',)))
+                else:
+                    shutil.move(curr_run_dir + file, dest)
+            print(file + ' logs in currentRun moved successfully to archive folder')
+    print('Process logs archived successfully!')
+
+
+def zipAndMoveFiles(file, srcDir, dest):
+    print('Zipping and moving ' + file)
+    f_in = open(srcDir + file, 'rb')
+    if os.path.exists(dest + file + '.gz'):
+        f_out = gzip.open(dest + file + '_0.gz', 'wb')
+    else:
+        f_out = gzip.open(dest + file + '.gz', 'wb')
+    f_out.writelines(f_in)
+    f_out.close()
+    f_in.close()
+    os.remove(srcDir + file)
+
+
+def startProcesses(processes):
+    process_started = False
+    for process in processes:
+        pid = genesis.checkProcessIsRunning(process)
+        if pid is None:
+            if args.verbose:
+                subprocess.call(['startProcess', process, '--verbose'] + sys.argv[1:])
+            else:
+                subprocess.call(['startProcess', process] + sys.argv[1:])
+            process_started = True
+    return process_started
+
+
+if args.cluster:
+    sys.exit(daemonCommon.execute_remote_call(['--ignoreDaemon'], daemonCommon.read_hostnames_from_definition(), sys.argv))
+elif args.hostname:
+    if not resourceValidator.validate_hosts_exists(args.hostname):
+        print('One or more hosts does not exist.')
+        exit(1)
+
+    sys.exit(daemonCommon.execute_remote_call(['--ignoreDaemon'], args.hostname, sys.argv))
+else:
+    print("Killing process restarter")
+    subprocess.call(['killProcessRestarter'])
+    processes = genesis.getListOfProcessNames()
+    coreProcesses = list([x for x in processes if "GENESIS_" in x])
+    nonCoreProcesses = list([x for x in processes if "GENESIS_" not in x])
+    if not args.ignoreDaemon:
+        subprocess.call(['killDaemon'])
+
+    move_logs()
+    genesis.log()
+
+    if not args.ignoreDaemon:
+        print("Starting Resource Daemon")
+        subprocess.call(['startDaemon'])
+        time.sleep(5)
+
+    processStarted = startProcesses(coreProcesses)
+    if processStarted:
+        time.sleep(5)
+
+    startProcesses(nonCoreProcesses)
+
+    print("Starting process restarter")
+    subprocess.call(['startProcessRestarter'])
+    sys.exit(0)
+

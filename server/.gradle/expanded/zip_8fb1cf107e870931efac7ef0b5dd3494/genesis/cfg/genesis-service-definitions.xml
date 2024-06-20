@@ -1,0 +1,24 @@
+<!--
+!
+!   System              : DTA Core Library
+!   Sub-System          : DTA Configuration
+!   Version             : 1.0
+!   Copyright           : (c) DTA
+!   Date                : 8th January 2015
+!
+!   Function : Provide Service Definitions Config details for DTA.
+!
+!   Modification History
+!
+-->
+
+<configuration>
+    <service host="localhost" name="GENESIS_CLUSTER" port="9000"/>
+    <service host="localhost" name="GENESIS_WEBMON" port="9011"/>
+    <service host="localhost" name="GENESIS_PROTOBUF_ADAPTER" port="9013"/>
+    <service host="localhost" name="GENESIS_PROTOBUF_SIM" port="9014"/>
+    <service host="localhost" name="GENESIS_EVALUATOR" port="9015"/>
+    <service host="localhost" name="GENESIS_DB_SERVER" port="9016"/>
+    <service host="localhost" name="GENESIS_ROUTER" port="9017"/>
+    <service host="localhost" name="GENESIS_SYNC" port="9019"/>
+</configuration>

@@ -1,0 +1,26 @@
+<protoBufSim>
+
+	<connection>
+		<hostname>224.0.0.3</hostname>
+		<port>23000</port>
+		<multicastInterface>eth1</multicastInterface>
+	</connection>
+
+	<protoBufConnection name="LEVEL_1">
+
+		<protoBufMessage name="Quote">
+            <size>256</size>
+            <sleep>10</sleep>
+			<fields>
+				<field modifier="required" name="Symbol" type="string" tag="1"/>
+				<field modifier="required" name="Bid" type="float" tag="2"/>
+				<field modifier="required" name="Ask" type="float" tag="3"/>
+				<field modifier="required" name="LastTrade" type="float" tag="4"/>
+				<field modifier="required" name="LastQuoteTime" type="string" tag="5"/>
+				<field modifier="optional" name="Volume" type="uint32" tag="6"/>
+			</fields>
+		</protoBufMessage>
+
+	</protoBufConnection>
+
+</protoBufSim>

@@ -1,0 +1,25 @@
+#!/bin/bash
+
+argv="$0 $*"
+python -c "import genesis; genesis.logAction(\"${argv}\")" >/dev/null 2>&1 &
+
+isServerRunning=$(python -c "import genesis; print(genesis.isServerDown())")
+isForced=$(echo $* | grep '\-\-force' | wc -l)
+isCommit=$(echo $* | grep '\-\-commit' | wc -l)
+
+# If the server is running, operation is not forced and commit is not mandatory
+if [ $isServerRunning -eq 1 ] && [ $isForced -eq 0 ] && [ $isCommit -eq 1 ]
+then
+    echo 'One or more processes are running. Please stop all the processes in all cluster nodes and try again.'
+    exit 1
+fi
+
+killDaemon
+
+export SCRIPT_MAX_HEAP=${REMAP_MAX_HEAP:--Xmx2048m}
+output=$(python -c "import genesis; exit(genesis.buildClasspathForModules(['genesis-environment'], False, False))" 2>&1 > /dev/null)
+
+JvmRun global.genesis.environment.remap.Remap "$@"
+STATUS=$?
+startDaemon
+exit $STATUS

@@ -1,0 +1,86 @@
+#!/usr/bin/env python3
+
+from xml.dom import minidom
+import os
+import genesis
+import jvm
+import subprocess
+import time
+import math
+
+def getListForProcessTag(xml, tagName):
+    if len(xml.getElementsByTagName(tagName)) == 1:
+        if xml.getElementsByTagName(tagName)[0].firstChild is not None:
+            return xml.getElementsByTagName(tagName)[0].firstChild.nodeValue.split(",")
+    return []
+
+def optimiseForProcess(process, fileNames, module, jars):
+    classpath = ""
+    ss_classpath = ""
+
+    for jar in jars:
+        found_jar = genesis.findJar(jar)
+        if "site-specific" not in found_jar:
+            classpath += found_jar + ":"
+        else:
+            ss_classpath += found_jar + ":"
+
+        dependency_jars = genesis.getDependenciesForJar(found_jar)
+        for dependencyJar in dependency_jars:
+            found_dependency_jar = genesis.findJar(dependencyJar)
+            if "site-specific" not in found_dependency_jar:
+                classpath += found_dependency_jar + ":"
+            else:
+                ss_classpath += found_dependency_jar + ":"
+
+    classpath = ss_classpath + classpath + genesis.buildClasspathForModules([module])
+
+    sys_def = genesis.read_system_definition()
+    write_to_manifest = sys_def.get("WriteClasspathToManifest", "false") == "true"
+
+    if not write_to_manifest:
+        os.environ['CLASSPATH'] = classpath
+
+    startClass = "global.genesis.config.dsl.host.PreCompileScripts"
+    joinedFileNames = ' '.join(fileNames)
+    if len(fileNames) == 0:
+        options = " "
+    else:
+        options = "-f " + joinedFileNames
+
+    if write_to_manifest:
+        classpath_cmd = os.environ['GENESIS_HOME'] + '/generated/classpath/' + process.getAttribute("name") + '.jar'
+        startCmd = 'java' ' -cp ' + classpath_cmd + jvm.JVM_DEFAULT_ARGS + startClass + ' ' + options
+    else:
+        startCmd = 'java' + jvm.JVM_DEFAULT_ARGS + startClass + ' ' + options
+
+    return subprocess.Popen(startCmd.split(' '))
+
+
+def processBatch(processList):
+    processes = []
+    for process in processList:
+        if process.getElementsByTagName('start') == 'false':
+            continue
+
+        scripts = getListForProcessTag(process, 'script') + getListForProcessTag(process, 'config')
+        fileNames = []
+        for script in scripts:
+            if script.endswith('.kts'):
+                fileNames.append(script)
+
+        moduleNames =  getListForProcessTag(process, 'module')[0]
+        jars = getListForProcessTag(process, 'classpath')
+        processes.append(optimiseForProcess(process, fileNames, moduleNames, jars))
+
+    for process in processes:
+        while process.poll() is None:
+            time.sleep(0.1)
+
+xmlDoc = minidom.parse(os.environ['GENESIS_HOME'] + '/generated/cfg/processes.xml')
+processList = xmlDoc.getElementsByTagName('process')
+
+batchSize = 4
+for i in range(0, int(math.ceil(len(processList) / batchSize))):
+    batch = processList[i*batchSize:(i+1)*batchSize]
+    processBatch(batch)

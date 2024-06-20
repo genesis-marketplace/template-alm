@@ -1,0 +1,42 @@
+#!/usr/bin/env python3
+
+import os
+import genesis
+
+def removeDuplicates():
+    counter = 0
+    # Get genesisBinFiles and genesisLibFiles first
+    wholeBinFiles = os.listdir(os.environ["GENESIS_HOME"] + '/genesis/bin/')
+    wholeLibFiles = os.listdir(os.environ["GENESIS_HOME"] + '/genesis/lib/')
+
+    ignoreDirectories = ["site-specific", "generated", "runtime", "genesis", "releases"]
+    directories = os.listdir(os.environ["GENESIS_HOME"])
+    directories = [x for x in directories if x not in ignoreDirectories]
+    directories.sort()
+    for directory in directories:
+        if os.path.isdir(os.environ["GENESIS_HOME"] + '/' + directory):
+            binFiles = []
+            libFiles = []
+            if os.path.exists(os.environ["GENESIS_HOME"] + '/' + directory + '/bin/'):
+                binFiles = [x for x in os.listdir(os.environ["GENESIS_HOME"] + '/' + directory + '/bin/') if not x.startswith(".")]
+                wholeBinFiles = wholeBinFiles + binFiles
+            if os.path.exists(os.environ["GENESIS_HOME"] + '/' + directory + '/lib/'):
+                libFiles = [x for x in os.listdir(os.environ["GENESIS_HOME"] + '/' + directory + '/lib/') if not x.startswith(".")]
+            for libFile in libFiles:
+                if libFile in wholeLibFiles:
+                    os.remove(os.environ["GENESIS_HOME"] + '/' + directory + '/lib/' + libFile)
+                    counter += 1
+                elif libFile in wholeBinFiles:
+                    os.remove(os.environ["GENESIS_HOME"] + '/' + directory + '/lib/' + libFile)
+                    counter += 1
+                else:
+                    wholeLibFiles.append(libFile)
+
+    return counter
+
+
+
+#print "Removing duplicated libraries..."
+genesis.log()
+totalFiles = removeDuplicates()
+#print totalFiles, "duplicated libraries removed"

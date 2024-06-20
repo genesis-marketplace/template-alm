@@ -1,0 +1,104 @@
+<!--
+!
+!   System              : GENESIS Business Library
+!   Sub-System          : AUTH Consolidator Definition
+!   Version             : 1.0
+!   Copyright           : (c) GENESIS
+!   Date                : 2018-06-25
+!   Author              : Auto generated
+!
+!   Function : Defines the standard AUTH consolidation service
+!
+!   Modification History
+!
+!-->
+<consolidations>
+    <preExpression>
+        <![CDATA[
+         ]]>
+    </preExpression>
+    <consolidation name="CON_APPROVAL_ENTITIES" start="true">
+        <tables>
+            <table name="APPROVAL_ENTITY" alias="pae" seedKey="APPROVAL_ENTITY_BY_ID" />
+            <table name="APPROVAL" alias="pa">
+                <join key="APPROVAL_BY_ID">
+                    <![CDATA[
+                    pa.setString("APPROVAL_ID", pae.getString("APPROVAL_ID"))
+                    ]]>
+                </join>
+                <backwardJoin>
+                    <![CDATA[
+                    parent.setString("APPROVAL_ID", child.getString("APPROVAL_ID"))
+                    ]]>
+                </backwardJoin>
+            </table>
+        </tables>
+        <groupBy>
+            <![CDATA[
+                group(pae?.getString("ENTITY_TABLE"), pae?.getString("ENTITY_ID"))
+            ]]>
+        </groupBy>
+        <consolidateTable name="APPROVAL_ENTITY_COUNTER" alias="paec" consolidationFields="AWAITING_COUNTER APPROVED_COUNTER CANCELLED_COUNTER REJECTED_BY_USER_COUNTER REJECTED_BY_SERVER_COUNTER">
+            <consolidationTarget key="APPROVAL_ENTITY_COUNTER_BY_ENTITY">
+                <![CDATA[
+                paec.setString("ENTITY_TABLE", pae.getString("ENTITY_TABLE"))
+                paec.setString("ENTITY_ID", pae.getString("ENTITY_ID"))
+                ]]>
+            </consolidationTarget>
+            <calculation>
+                <![CDATA[
+                LOG.debug("Start Table: {} ID: {} await {} comp {} canc {} rejUser {} rejServ {}",
+                                pae.getString("ENTITY_TABLE"),
+                                pae.getString("ENTITY_ID"),
+                                paec.getInteger("AWAITING_COUNTER"),
+                                paec.getInteger("APPROVED_COUNTER"),
+                                paec.getInteger("CANCELLED_COUNTER"),
+                                paec.getInteger("REJECTED_BY_USER_COUNTER"),
+                                paec.getInteger("REJECTED_BY_SERVER_COUNTER")
+                )
+                String status = pa.getString("APPROVAL_STATUS")
+                if (eventType == EventType.LEAVE){
+                    switch(status){
+                        case "PENDING":
+                            Integer awaiting = paec.getInteger("AWAITING_COUNTER") ?: 0
+                            paec.setInteger("AWAITING_COUNTER", awaiting - 1)
+                            break
+                    }
+                } else if (eventType == EventType.JOIN) {
+                    switch(status){
+                        case "PENDING":
+                            Integer awaiting = paec.getInteger("AWAITING_COUNTER") ?: 0
+                            paec.setInteger("AWAITING_COUNTER", awaiting + 1)
+                            break
+                        case "APPROVED":
+                            Integer completed = paec?.getInteger("APPROVED_COUNTER") ?: 0
+                            paec.setInteger("APPROVED_COUNTER", completed + 1)
+                            break
+                        case "CANCELLED":
+                            Integer cancelled = paec?.getInteger("CANCELLED_COUNTER") ?: 0
+                            paec.setInteger("CANCELLED_COUNTER", cancelled + 1)
+                            break
+                        case "REJECTED_BY_USER":
+                            Integer rejectedUser = paec?.getInteger("REJECTED_BY_USER_COUNTER") ?: 0
+                            paec.setInteger("REJECTED_BY_USER_COUNTER", rejectedUser + 1)
+                            break
+                        case "REJECTED_BY_SERVICE":
+                            Integer rejectedService = paec?.getInteger("REJECTED_BY_SERVER_COUNTER") ?: 0
+                            paec.setInteger("REJECTED_BY_SERVER_COUNTER", rejectedService + 1)
+                            break
+                    }
+                }
+                LOG.debug("End Table: {} ID: {} await {} comp {} canc {} rejUser {} rejServ {}",
+                                pae.getString("ENTITY_TABLE"),
+                                pae.getString("ENTITY_ID"),
+                                paec.getInteger("AWAITING_COUNTER"),
+                                paec.getInteger("APPROVED_COUNTER"),
+                                paec.getInteger("CANCELLED_COUNTER"),
+                                paec.getInteger("REJECTED_BY_USER_COUNTER"),
+                                paec.getInteger("REJECTED_BY_SERVER_COUNTER")
+                )
+                ]]>
+            </calculation>
+        </consolidateTable>
+    </consolidation>
+</consolidations>

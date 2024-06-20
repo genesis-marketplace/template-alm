@@ -1,0 +1,8 @@
+#!/bin/bash
+
+IS_PROCESS_RUNNING=$(python -c"import genesis; print(genesis.checkScriptIsRunning('processRestarter.py'))")
+if [ "None" = "$IS_PROCESS_RUNNING" ]; then
+    nohup python -u $GENESIS_HOME/genesis/scripts/$GENESIS_OS/python3/processRestarter.py > $GENESIS_HOME/runtime/logs/processRestarter.log 2>&1 &
+else
+    echo "Process restarter is already running"
+fi

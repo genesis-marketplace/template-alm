@@ -1,0 +1,47 @@
+<xs:schema attributeFormDefault="unqualified" elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:element name="eventHandler">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="settings" minOccurs="0" maxOccurs="1">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="database" minOccurs="0" maxOccurs="1">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element type="xs:byte" name="updateQueuePollMs"/>
+                                        <xs:element type="xs:byte" name="transactionThreads"/>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                            <xs:element name="messaging" minOccurs="0" maxOccurs="1">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element type="xs:string" name="keepAlive"/>
+                                        <xs:element type="xs:string" name="noDelay"/>
+                                    </xs:sequence>
+                                </xs:complexType>
+                            </xs:element>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+                <xs:element type="xs:string" name="preExpression"/>
+                <xs:element name="transactions">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="transaction" maxOccurs="unbounded" minOccurs="1">
+                                <xs:complexType>
+                                    <xs:sequence>
+                                        <xs:element type="xs:string" name="preValidate" minOccurs="0" maxOccurs="1"/>
+                                        <xs:element type="xs:string" name="prePersist" minOccurs="0" maxOccurs="1"/>
+                                        <xs:element type="xs:string" name="postPersist" minOccurs="0" maxOccurs="1"/>
+                                    </xs:sequence>
+                                    <xs:attribute type="xs:string" name="name"/>
+                                </xs:complexType>
+                            </xs:element>
+                        </xs:sequence>
+                    </xs:complexType>
+                </xs:element>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+</xs:schema>

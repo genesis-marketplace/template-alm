@@ -1,0 +1,16 @@
+#!/bin/bash
+
+mkdir -p $GENESIS_HOME/runtime/logs
+
+rm -rf $GENESIS_HOME/generated/genesis-generated-sysdef
+rm -rf $GENESIS_HOME/generated/genesis-generated-fields
+
+if ! [[ $@ == *"--help"* ]]
+then
+optimiseLibs
+fi
+
+JvmRun global.genesis.environment.install.Install "$@"
+STATUS=$?
+
+exit $STATUS

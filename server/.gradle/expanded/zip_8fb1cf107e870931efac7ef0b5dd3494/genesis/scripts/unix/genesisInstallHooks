@@ -1,0 +1,11 @@
+#!/bin/bash
+
+mkdir -p $GENESIS_HOME/runtime/logs
+
+JvmRun global.genesis.environment.install.InstallHooks $1
+STATUS=$?
+if ! [[ $@ == *"--help"* ]]
+then
+optimiseLibs
+fi
+exit $STATUS

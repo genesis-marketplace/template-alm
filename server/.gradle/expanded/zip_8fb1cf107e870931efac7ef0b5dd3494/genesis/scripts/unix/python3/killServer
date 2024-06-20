@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+
+import sys
+import daemonCommon
+import os
+import genesis
+import shutil
+import argparse
+import resourceValidator
+import subprocess
+
+parser = argparse.ArgumentParser(description='Kills a Genesis server.', usage='killServer [--hostname <[hosts names]>][--force][--help]', add_help=False)
+parser.add_argument('--hostname', '-s', dest='hostname', help='Hosts Name or "cluster" for all hosts', nargs='+')
+parser.add_argument('--force', '-f', dest='force', help='forcefully kills a process', action="store_true")
+parser.add_argument('--all', help='Kill all processes including GENESIS_CLUSTER', action="store_true")
+parser.add_argument('--help', '-h', dest='help', help='displays help content', action="store_true")
+parser.add_argument('--cluster', '-c', dest='cluster', help='Sends the command across the cluster nodes', action="store_true")
+args, unknown = parser.parse_known_args()
+
+force = True if args.force else False
+all = True if args.all else False
+confirmation = ''
+
+if args.help:
+    parser.print_help()
+    sys.exit(2)
+
+if args.cluster:
+    sys.exit(daemonCommon.execute_remote_call(["--force"], daemonCommon.read_hostnames_from_definition(), sys.argv))
+
+if args.hostname:
+    if not resourceValidator.validate_hosts_exists(args.hostname):
+        print('One or more hosts does not exist.')
+        sys.exit(1)
+
+    sys.exit(daemonCommon.execute_remote_call(["--force"], args.hostname, sys.argv))
+
+if not force:
+    confirmation = input('Are you sure you want to kill server? (y/n):')
+
+if confirmation == 'y' or force:
+    print('Killing server')
+    print('Killing process restarter')
+    subprocess.call(['killProcessRestarter'])
+    genesis.log()
+    processes = genesis.getListOfProcessNames()
+
+    for process in processes:
+        if process != 'GENESIS_CLUSTER' or all:
+            print('Killing ' + process)
+            cmd = 'killProcess ' + process
+            os.system(cmd)
+
+else:
+    print('Aborting')
+

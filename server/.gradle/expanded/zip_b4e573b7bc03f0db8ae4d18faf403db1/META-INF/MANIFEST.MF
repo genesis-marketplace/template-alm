@@ -1,0 +1,98 @@
+Manifest-Version: 1.0
+Class-Path: genesis-pal-execution-8.0.0.jar genesis-pal-8.0.0.jar genesi
+ s-db-8.0.0.jar genesis-aliasstore-8.0.0.jar genesis-net-8.0.0.jar genes
+ is-dictionary-8.0.0.jar genesis-tracing-8.0.0.jar genesis-config-8.0.0.
+ jar genesis-logging-8.0.0.jar genesis-jackson-8.0.0.jar genesis-commons
+ -8.0.0.jar genesis-messages-8.0.0.jar opentelemetry-instrumentation-api
+ -semconv-1.31.0-alpha.jar opentelemetry-semconv-1.21.0-alpha.jar opente
+ lemetry-extension-kotlin-1.31.0.jar kotlinx-coroutines-rx3-1.7.3.jar ko
+ tlinx-coroutines-reactive-1.7.3.jar kotlinx-coroutines-slf4j-1.7.3.jar 
+ kotlinx-coroutines-core-jvm-1.7.3.jar kotlinx-coroutines-jdk8-1.7.3.jar
+  kotlinpoet-1.14.2.jar opentelemetry-exporter-otlp-1.31.0.jar opentelem
+ etry-exporter-sender-okhttp-1.31.0.jar okhttp-4.12.0.jar okio-jvm-3.6.0
+ .jar kotlin-stdlib-jdk8-1.9.10.jar commons-lang3-3.14.0.jar commons-con
+ figuration-1.10.jar aws-advanced-jdbc-wrapper-2.3.6.jar rds-2.25.36.jar
+  sts-2.25.36.jar apache-client-2.25.36.jar httpclient-4.5.14.jar common
+ s-codec-1.16.1.jar kotlin-stdlib-jdk7-1.9.10.jar kotlin-scripting-jvm-h
+ ost-1.9.10.jar kotlin-scripting-compiler-embeddable-1.9.10.jar kotlin-s
+ cripting-compiler-impl-embeddable-1.9.10.jar kotlin-scripting-jvm-1.9.1
+ 0.jar kotlin-scripting-dependencies-1.9.10.jar kotlin-scripting-common-
+ 1.9.10.jar kotlin-compiler-embeddable-1.9.10.jar json-schema-validator-
+ 1.4.0.jar jackson-dataformat-msgpack-0.9.8.jar jackson-dataformat-csv-2
+ .17.1.jar jackson-dataformat-xml-2.17.1.jar jackson-dataformat-yaml-2.1
+ 7.1.jar jackson-datatype-joda-2.17.1.jar jackson-databind-2.17.1.jar ja
+ ckson-annotations-2.17.1.jar jackson-core-2.17.1.jar jackson-module-kot
+ lin-2.17.1.jar kotlin-reflect-1.9.10.jar kotlin-stdlib-1.9.10.jar groov
+ y-astbuilder-3.0.21.jar groovy-nio-3.0.21.jar groovy-json-3.0.21.jar gr
+ oovy-jsr223-3.0.21.jar groovy-sql-3.0.21.jar groovy-templates-3.0.21.ja
+ r groovy-xml-3.0.21.jar groovy-cli-picocli-3.0.21.jar groovy-3.0.21.jar
+  log4j-slf4j2-impl-2.23.1.jar HikariCP-5.1.0.jar artemis-jakarta-client
+ -2.33.0.jar reflections-0.10.2.jar artemis-core-client-2.33.0.jar artem
+ is-selector-2.33.0.jar artemis-commons-2.33.0.jar shiro-core-1.13.0.jar
+  shiro-cache-1.13.0.jar shiro-crypto-hash-1.13.0.jar shiro-crypto-ciphe
+ r-1.13.0.jar shiro-config-ogdl-1.13.0.jar shiro-config-core-1.13.0.jar 
+ shiro-event-1.13.0.jar shiro-crypto-core-1.13.0.jar shiro-lang-1.13.0.j
+ ar aws-query-protocol-2.25.36.jar protocol-core-2.25.36.jar aws-core-2.
+ 25.36.jar auth-2.25.36.jar regions-2.25.36.jar sdk-core-2.25.36.jar htt
+ p-auth-aws-2.25.36.jar http-auth-2.25.36.jar http-auth-spi-2.25.36.jar 
+ identity-spi-2.25.36.jar netty-nio-client-2.25.36.jar http-client-spi-2
+ .25.36.jar metrics-spi-2.25.36.jar json-utils-2.25.36.jar profiles-2.25
+ .36.jar utils-2.25.36.jar slf4j-api-2.0.13.jar log4j-core-2.23.1.jar lo
+ g4j-api-2.23.1.jar disruptor-3.4.4.jar antlr4-runtime-4.8-1.jar postgre
+ sql-42.7.3.jar xstream-1.4.20.jar javax.inject-1.jar kryo-5.6.0.jar jav
+ assist-3.30.2-GA.jar classgraph-4.8.172.jar jeromq-0.6.0.jar aeron-clie
+ nt-1.44.1.jar caffeine-2.9.3.jar guice-5.1.0.jar guava-33.1.0-jre.jar c
+ ommons-cli-1.7.0.jar picocli-4.7.6.jar fdb-java-7.1.33.jar ojdbc11-23.4
+ .0.24.05.jar xdb-23.4.0.24.05.jar mssql-jdbc-12.6.1.jre11.jar commons-i
+ o-2.16.1.jar netty-all-4.1.109.Final.jar joda-time-2.12.7.jar msgpack-c
+ ore-0.9.8.jar rxjava-3.1.8.jar javax.annotation-api-1.3.2.jar fastutil-
+ 8.1.0-min-genesis.jar agrona-1.21.1.jar commons-net-3.10.0.jar compiler
+ -0.9.13.jar objenesis-3.4.jar javax.activation-1.2.0.jar vault-java-dri
+ ver-5.1.0.jar org.eclipse.paho.client.mqttv3-1.2.5.jar error_prone_anno
+ tations-2.27.1.jar checker-qual-3.43.0.jar netty-transport-native-epoll
+ -4.1.109.Final-linux-x86_64.jar netty-transport-native-epoll-4.1.109.Fi
+ nal-linux-aarch_64.jar netty-transport-native-epoll-4.1.109.Final-linux
+ -riscv64.jar kotlin-stdlib-common-1.9.10.jar annotations-23.0.0.jar kot
+ lin-script-runtime-1.9.10.jar opentelemetry-sdk-extension-autoconfigure
+ -spi-1.31.0.jar opentelemetry-sdk-1.31.0.jar opentelemetry-extension-tr
+ ace-propagators-1.31.0.jar opentelemetry-instrumentation-api-1.31.0.jar
+  opentelemetry-sdk-metrics-1.31.0.jar opentelemetry-extension-incubator
+ -1.31.0-alpha.jar opentelemetry-sdk-trace-1.31.0.jar opentelemetry-sdk-
+ logs-1.31.0.jar opentelemetry-sdk-common-1.31.0.jar opentelemetry-api-e
+ vents-1.31.0-alpha.jar opentelemetry-exporter-common-1.31.0.jar opentel
+ emetry-api-1.31.0.jar opentelemetry-context-1.31.0.jar opentelemetry-ex
+ porter-otlp-common-1.31.0.jar opentelemetry-javaagent-1.31.0.jar reflec
+ tion-util-2.15.0.jar commons-lang-2.6.jar commons-beanutils-1.9.4.jar c
+ ommons-logging-1.2.jar jnacl-1.0.0.jar jakarta.jms-api-3.1.0.jar aeron-
+ annotations-1.44.1.jar failureaccess-1.0.2.jar listenablefuture-9999.0-
+ empty-to-avoid-conflict-with-guava.jar jsr305-3.0.2.jar reactive-stream
+ s-1.0.4.jar aopalliance-1.0.jar reflectasm-1.11.9.jar minlog-1.3.1.jar 
+ mxparser-1.2.2.jar jgroups-5.3.2.Final.jar netty-transport-classes-epol
+ l-4.1.109.Final.jar netty-transport-native-kqueue-4.1.109.Final-osx-x86
+ _64.jar netty-transport-native-kqueue-4.1.109.Final-osx-aarch_64.jar ne
+ tty-transport-classes-kqueue-4.1.109.Final.jar netty-handler-proxy-4.1.
+ 109.Final.jar netty-codec-http2-4.1.109.Final.jar netty-codec-http-4.1.
+ 109.Final.jar netty-codec-socks-4.1.109.Final.jar netty-resolver-dns-na
+ tive-macos-4.1.109.Final-osx-x86_64.jar netty-resolver-dns-native-macos
+ -4.1.109.Final-osx-aarch_64.jar netty-resolver-dns-classes-macos-4.1.10
+ 9.Final.jar netty-resolver-dns-4.1.109.Final.jar netty-handler-4.1.109.
+ Final.jar netty-codec-dns-4.1.109.Final.jar netty-codec-4.1.109.Final.j
+ ar netty-transport-native-unix-common-4.1.109.Final.jar netty-transport
+ -4.1.109.Final.jar netty-buffer-4.1.109.Final.jar netty-resolver-4.1.10
+ 9.Final.jar netty-common-4.1.109.Final.jar pem-keystore-2.3.0.jar bcpki
+ x-jdk18on-1.77.jar bcutil-jdk18on-1.77.jar bcprov-jdk18on-1.77.jar endp
+ oints-spi-2.25.36.jar checksums-2.25.36.jar checksums-spi-2.25.36.jar a
+ nnotations-2.25.36.jar itu-1.8.0.jar kotlin-daemon-embeddable-1.9.10.ja
+ r trove4j-1.0.20200330.jar xmlpull-1.1.3.1.jar netty-codec-haproxy-4.1.
+ 109.Final.jar netty-codec-memcache-4.1.109.Final.jar netty-codec-mqtt-4
+ .1.109.Final.jar netty-codec-redis-4.1.109.Final.jar netty-codec-smtp-4
+ .1.109.Final.jar netty-codec-stomp-4.1.109.Final.jar netty-codec-xml-4.
+ 1.109.Final.jar netty-handler-ssl-ocsp-4.1.109.Final.jar netty-transpor
+ t-rxtx-4.1.109.Final.jar netty-transport-sctp-4.1.109.Final.jar netty-t
+ ransport-udt-4.1.109.Final.jar woodstox-core-6.6.2.jar stax2-api-4.2.2.
+ jar snakeyaml-2.2.jar commons-collections-3.2.2.jar eventstream-1.0.1.j
+ ar third-party-jackson-core-2.25.36.jar httpcore-4.4.16.jar
+Implementation-Vendor: global.genesis
+Implementation-Title: auth-config
+Implementation-Version: 8.0.0
+

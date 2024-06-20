@@ -1,0 +1,11 @@
+#!/usr/bin/env python3
+import sys
+import jvm
+
+def printUsage():
+    print('JvmRun [-modules=m1,m2,...,mn] scriptsName [args]')
+
+if len(sys.argv) < 2:
+    printUsage()
+else:
+    jvm.execute(False)

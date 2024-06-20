@@ -1,0 +1,17 @@
+<!--
+!
+!   System              : DTA Business Library
+!   Sub-System          : AUTH Configuration
+!   Version             : 1.0
+!   Copyright           : (c) DTA
+!
+!   Function : Provide Service Definition Config for AUTH.
+!
+!   Modification History
+!
+-->
+<configuration>
+    <service host="localhost" name="GENESIS_AUTH_MANAGER" port="8000" />
+    <service host="localhost" name="GENESIS_AUTH_PERMS" port="8001" />
+    <service host="localhost" name="GENESIS_AUTH_CONSOLIDATOR" port="8002"/>
+</configuration>

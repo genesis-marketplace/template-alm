@@ -1,0 +1,18 @@
+<!--
+    Services defined here will define ports and hosts of processes required by the application.
+
+  * Full documentation on service definitions may be found here >> https://learn.genesis.global/docs/server/configuring-runtime/service-definitions/
+
+-->
+
+<configuration>
+  <service host="localhost" name="ALM_MANAGER" port="9700"/>
+  <service host="localhost" name="ALM_CONSOLIDATOR" port="9701"/>
+  <service host="localhost" name="ALM_DATAPIPELINE" port="9702"/>
+  <service host="localhost" name="ALM_FXRATE_CONNECTOR" port="9703"/>
+  <service host="localhost" name="ALM_EVALUATOR" port="11003"/>
+
+
+<!-- TODO Runtime 3. Add any new service definitions here-->
+
+</configuration>

@@ -1,0 +1,276 @@
+#!/usr/bin/env python3
+
+from optparse import OptionParser
+from distutils.version import StrictVersion
+
+import distutils.core
+import errno
+import sys
+import shutil
+import re
+import os
+import zipfile
+import genesis
+
+from xml.dom import minidom
+
+
+def printLn(text):
+    print("%s\n" % text)
+
+def exit(text):
+    printLn(text)
+    sys.exit()
+
+def fail(text):
+    printLn(text)
+    return False
+
+def productId(productName, version):
+    return "%s.v%s" % (productName, version)
+
+def isNewInstallationUnderway(genesisHome, name, version):
+    newFolder = "%s/releases/%s/new/" % (genesisHome, productId(name,version))
+    if os.path.exists(newFolder):
+        return True
+    return False
+
+def backupNewInstall(genesisHome, name, version, zp):
+    printLn("Backing up new installation in releases/%s/new/..." % productId(name,version))
+    extractFolder = "%s/releases/%s/" % (genesisHome, productId(name,version))
+    newFolder = extractFolder + "new/"
+    if not os.path.exists(extractFolder):
+        os.makedirs(extractFolder)
+    zp.extractall(extractFolder)
+    os.rename(extractFolder + name, newFolder)
+    printLn("Back up for new installation completed!")
+
+def backupCurrentInstall(genesisHome, name, version, matchingFiles):
+    printLn("Backing up current installation in releases/%s/old/..." % productId(name,version))
+    oldFolder = "%s/releases/%s/old/" % (genesisHome, productId(name,version))
+    if not os.path.exists(oldFolder):
+        os.makedirs(oldFolder)
+    currentFolder = "%s/%s" % (genesisHome, name)
+    distutils.dir_util.copy_tree(currentFolder, oldFolder)
+    if matchingFiles :
+        for f in matchingFiles :
+            specificCfgPath = os.path.split(f.split(genesisHome)[1])[0]
+            mergedFolder = oldFolder + specificCfgPath 
+            if not os.path.exists(mergedFolder):
+                os.makedirs(mergedFolder)
+            distutils.file_util.copy_file(f, mergedFolder)
+    printLn("Back up for current installation completed!")
+
+def install(genesisHome, zp):
+    zp.extractall(genesisHome)
+    printLn("Installation was succesful!")
+
+# 0 if equal, -1 if version 2 greater and 1 if version 1 greater
+def compareVersions(version1, version2):
+    def normalize(v):
+        return [int(x) for x in re.sub(r'(\.0+)*$','', v).split(".")]
+    return cmp(normalize(version1), normalize(version2))
+
+def isVersionNumber(version):
+    try:
+        StrictVersion(version)
+    except ValueError:
+        return False
+    return version
+    
+def getParser():
+    parser = OptionParser(usage="usage: %prog productFile [--commit]")
+    parser.add_option('-c', '--commit', dest='commit', action="store_true", default=False, help='Commits changes and installs product.')
+    return parser
+
+def checkDependency(genesisHome, dependency):
+    name = dependency.getElementsByTagName('id')
+    if not name:
+        return fail("product-details.xml file is not well formatted: id field is missing in a dependency.")
+    else :
+        name = name[0].firstChild.nodeValue
+
+    expectedVersion = dependency.getElementsByTagName('version')
+    if not expectedVersion:
+        return fail("product-details.xml file is not well formatted: version field is missing in a dependency.")
+    else :
+        expectedVersion = isVersionNumber(expectedVersion[0].firstChild.nodeValue)
+
+    if not expectedVersion:
+        return fail("Version field is poorly formatted in dependency for product %s" % name)
+
+    #global-product-details file check
+    if os.path.exists('%s/generated/cfg/global-product-details.xml' % genesisHome):
+        productVersion = getProductInfoFromGlobalFile('%s/generated/cfg/global-product-details.xml' % genesisHome, name)
+        if productVersion:
+            comparison = compareVersions(expectedVersion, productVersion)
+            if comparison > 0 :
+                return fail("Product dependency %s needs to be at least version %s." % (name, expectedVersion))
+            elif comparison < 0 :
+                printLn('Current installed product (%s) is newer than required dependency (%s).' % (productId(name,productVersion), productId(name,expectedVersion)))
+                confirmation = input('Are you sure you want to install? (y/n):\n')
+                if confirmation == 'n' :
+                    return fail("Installation will be aborted")
+        else:
+            return False
+    #Independent product details file check
+    elif os.path.exists('%s/%s/cfg/%s-product-details.xml' % (genesisHome, name, name)):
+        productVersion, dependencies = getProductInfoFromProductFile('%s/%s/cfg/%s-product-details.xml' % (genesisHome, name, name), name)
+        if productVersion:
+            comparison = compareVersions(expectedVersion, productVersion)
+            if comparison > 0 :
+                return fail("Product dependency %s needs to be at least version %s." % (name, expectedVersion))
+            elif comparison < 0 :
+                printLn('Current installed product (%s) is newer than required dependency (%s).' % (productId(name,productVersion), productId(name,expectedVersion)))
+                confirmation = input('Are you sure you want to install? (y/n):\n')
+                if confirmation == 'n' :
+                    return fail("Installation will be aborted")
+        else:
+            return False
+    else :
+        return fail("Product " + name + "is not installed.")
+    return True
+
+#If everything is correct, returns True
+def checkDependencies(genesisHome, dependencies):
+    for dependency in dependencies :
+        if not checkDependency(genesisHome, dependency) :
+            return False
+    return True
+
+def fileMatches(f, name):
+    if f.startswith(name):
+        return f
+    else :
+        return False
+
+def getProductInfoFromGlobalFile(path, productName):
+    productVersion = None
+    xmlDoc = minidom.parse(path)
+    try:
+        if xmlDoc:
+            products = xmlDoc.getElementsByTagName('details')
+            for product in products:
+                name = product.getElementsByTagName('name')
+                if name:
+                    name = name[0].firstChild.nodeValue
+                    if name == productName:
+                        productVersion = product.getElementsByTagName('version')
+                        if productVersion:
+                            productVersion = isVersionNumber(productVersion[0].firstChild.nodeValue)
+                        else :
+                            printLn("Version field in global-product-details.xml for %s is not well structured." % productName)
+                        return productVersion
+            printLn("Product %s is not installed/defined in global-product-details.xml." % productName)
+        else :
+            printLn("global-product-details.xml in %s is not a proper XML file. Installation aborted." % productName)
+    except IOError:
+        printLn("global-product-details.xml in %s does not exist. Installation aborted." % productName)
+    return productVersion
+
+def getProductInfoFromProductFile(path, productName):
+    productVersion, dependencies = None, None
+    try: 
+        xmlDoc = minidom.parse(path)
+        if xmlDoc:
+            productVersion = xmlDoc.getElementsByTagName('version')
+            dependencies = xmlDoc.getElementsByTagName('dependency')
+            if productVersion:
+                productVersion = isVersionNumber(productVersion[0].firstChild.nodeValue)
+            else :
+                printLn("Version field in product-details.xml for %s is not well structured." % productName)
+        else :
+            printLn("product-details.xml in %s is not a proper XML file. Installation aborted." % productName)
+    except IOError:
+        printLn("product-details.xml in %s does not exist. Installation aborted." % productName)
+    return productVersion, dependencies
+
+def getInstallReleaseInfo(productName, zp):
+    productVersion, dependencies = None, None 
+    try: 
+        # If file extraction fails an exception will be shown
+        zp.extract("%s/cfg/%s-product-details.xml" % (productName, productName))
+        productVersion, dependencies = getProductInfoFromProductFile("%s/cfg/%s-product-details.xml" % (productName, productName), productName)
+    finally :
+        shutil.rmtree(productName, True)
+    return productVersion, dependencies
+
+def checkFolderForChanges(folder, productName):
+    files = []
+    for (dirpath, dirnames, filenames) in os.walk(folder):
+        matchingFiles = [dirpath + '/' + m for m in [fileMatches(f, productName) for f in filenames] if m]
+        if matchingFiles :
+            files.extend(matchingFiles)
+    return files
+
+def getOverridenFiles(genesisHome, name):
+    matchingFiles = checkFolderForChanges(genesisHome + 'site-specific/', name)
+    if not matchingFiles:
+        printLn("No files were overriden, product installation will be straightforward.")
+    else :
+        printLn("Please merge current changes in overriden files after installation:")
+        for f in matchingFiles :
+            printLn("\t %s" % f)
+    return matchingFiles
+
+#BEGINNING OF SCRIPT
+genesisHome = os.environ['GENESIS_HOME']
+parser = getParser()
+(options, args) = parser.parse_args()
+if not args:
+    parser.error("A product file has to be specified.\n")
+elif len(args) > 1:
+    parser.error("Only one product file per script execution is allowed.\n")
+elif zipfile.is_zipfile(args[0]):
+    if not options.commit:
+        printLn("Changes will not be commmited. Summary of changes:")
+    else :
+        printLn("Changes will be commited.")
+    zp = zipfile.ZipFile(args[0], "r")
+    # Assume product file has a folder with name?
+    name = zp.namelist()[0][:-1]
+    version, dependencies = getInstallReleaseInfo(name, zp)
+
+    if not version:
+        exit("Product zipfile does not contain a correct product-details.xml file. The product will not be installed.")
+
+    if isNewInstallationUnderway(genesisHome, name, version):
+        exit("A new installation is underway. Please delete '%sreleases/%s/new/' folder if you want to start a new installation." % (genesisHome, productId(name, version)))
+
+    if not checkDependencies(genesisHome, dependencies) :
+        exit("One or more errors were found while checking dependencies. Please fix the issues before attempting to install the product again.")
+
+    dta.log()
+
+    if not os.path.exists(genesisHome + '/' + name):
+        printLn("Product %s is currently not installed." % productId(name, version))
+        getOverridenFiles(genesisHome, name)
+        if options.commit:
+            backupNewInstall(genesisHome, name, version, zp)
+            install(genesisHome, zp)
+
+    else :
+        oldVersion, oldDependencies = getProductInfoFromProductFile('%s/%s/cfg/%s-product-details.xml' % (genesisHome, name, name), name)
+        if not oldVersion:
+            exit("Current installed product does not contain a correct product-details.xml file. The product will not be installed.")
+
+        printLn("Product %s is currently installed. Performing clean install/upgrade for version %s..." % (productId(name, oldVersion), version))
+
+        comparison = compareVersions(oldVersion, version)
+        if (comparison > 0):
+            printLn("You are trying to perform a downgrade from %s to %s." % (productId(name, oldVersion), productId(name, version)))
+            confirmation = input('This can be potentially DANGEROUS. Are you sure you want to proceed with the downgrade? (y/n):\n')
+            if confirmation == 'n' :
+                exit("Downgrade will not be performed. The product will not be installed.")
+
+        matchingFiles = getOverridenFiles(genesisHome, name)
+
+        backupCurrentInstall(genesisHome, name, oldVersion, matchingFiles)
+        backupNewInstall(genesisHome, name, version, zp)
+        if options.commit:
+            confirmation = input('Are you sure you want to proceed with the installation and overwrite the old one? (y/n):\n')
+            if confirmation == 'y' :
+                install(genesisHome, zp)
+
+else :
+    printLn("The argument is not a valid .zip file.")

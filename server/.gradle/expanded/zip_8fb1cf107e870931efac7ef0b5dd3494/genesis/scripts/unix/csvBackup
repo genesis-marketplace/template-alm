@@ -1,0 +1,8 @@
+#!/bin/bash
+
+source $HOME/.bashrc
+today=`date +%Y-%m-%d`
+mkdir -p $HOME/csvBackup/$today
+cd $HOME/csvBackup/$today
+echo c | JvmRun global.genesis.environment.scripts.DumpTable -a
+gzip *
