@@ -1,5 +1,8 @@
-# ALM
+# ALM 
 
+This Sales/Trader application was built in about 8 hours as a POC for a potential client in the middle east.  This was to replace email interactions between sales and trading for the purpose of price requests.  The system includes full authorisation for differing user profiles (sales and trading), includes pop up notifications on screens, reporting capability and an analytics tab to enable interrogation of hit rates by client, trader, product etc.
+
+The system current covers FX and Bonds, but can be easily expanded to cover other products as needed.
 
 The ALM application is an example application that is designed to show a series of functional capability including:
 - Trade booking
