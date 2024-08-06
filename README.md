@@ -1,5 +1,21 @@
 # ALM
 
+
+The ALM application is an example application that is designed to show a series of functional capability including:
+- Trade booking
+- Trade version management
+- Ingestion of data via a csv data pipeline
+- Ingestion of data via a reoccurring RestAPI call
+- Ingestion of data via Kafka topic subscription
+- Use of views to join tables and provide derived fields
+- Consolidation of data across multiple asset classes to provide a single position ladder showing aggregate cash movements by date and currency
+- Front end features including charting
+- Use of PBC’s including Notifications and Reporting
+
+
+The instructions for building this application (from scratch) can also be found in the learning area of the Genesis website and it is provided for users of the sandboxes to help familiarise developers with the Genesis platform and its capabilities.
+
+
 This project has been created from the Genesis Blank Application Seed. Our seeds allow users to quickly bootstrap
 their projects. Each seed adheres to strict Genesis best practices, and has passed numerous performance, compliance and
 accessibility checks. 
